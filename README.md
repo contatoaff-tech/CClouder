@@ -15,6 +15,46 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 | **Desinstalar** | Lista programas instalados e executa o desinstalador |
 | **Disco** | Análise paralela: 20 maiores pastas por tamanho |
 
+## Como funciona
+
+```
+┌───────────────────────────── Windows ─────────────────────────────┐
+│                                                                   │
+│  CClinear.exe (2,5 MB, arquivo único)                             │
+│  ┌────────────────────────────┬────────────────────────────────┐  │
+│  │  UI  (React + Tailwind)    │  Nativo  (C# / .NET 10 + WPF)  │  │
+│  │  7 abas, 12 componentes    │  WebView2 host + Backend.cs    │  │
+│  │  compilada pelo Vite →     │                                │  │
+│  │  dist/ (1 arquivo JS+CSS)  │  Registry / FileSystem / Win32 │  │
+│  └────────────┬───────────────┴───────────────┬────────────────┘  │
+│               │  window.__TAURI_INTERNALS__   │                   │
+│               │  (shim de compatibilidade)    │                   │
+│               └───────── postMessage ─────────┘                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**1. Interface.** A UI é um app React normal (React 18 + Tailwind + Lucide) compilado pelo Vite. O resultado (`dist/`) é embutido dentro do exe no publish (`IncludeAllContentForSelfExtract`) e extraído em tempo de execução. O WebView2 carrega tudo via host virtual `https://cclinear.app`.
+
+**2. Ponte IPC.** O frontend usa as APIs do `@tauri-apps/api` (`invoke` e `listen`). Como o shell é C#, não Tauri, um **shim** injetado em cada documento (`AddScriptToExecuteOnDocumentCreatedAsync`) replica o contrato exato da API v2:
+- `invoke(cmd, args)` → `postMessage({__req, __cmd, __payload})` → o C# roteia para o backend e responde com `PostWebMessageAsJson({__req, ok, data})`, resolvendo a Promise do JS;
+- `transformCallback(callback)` → registra callbacks numerados, igual ao runtime real do Tauri;
+- `listen(event, handler)` → o handler é registrado localmente no shim e o C# entrega eventos (`scan-progress`, `scan-complete`) via `ExecuteScriptAsync("window.__TAURI_INTERNALS__.runCallback(id, {event, payload})")`.
+
+**3. Backend nativo (`Backend.cs`).** Cada comando executa operações reais do Windows:
+
+| Comando | O que faz no sistema |
+|---|---|
+| `get_categories` | Devolve o catálogo de limpeza (5 categorias, 30 itens) |
+| `start_scan` | Mede tamanho/quantidade de cada item (dirs, globs, arquivos) em thread separada, emitindo progresso; Registro é auditado de verdade (SharedDLLs apontando p/ arquivo inexistente, desinstaladores órfãos, CLSID sem servidor, extensões sem ProgID, fontes ausentes, App Paths quebrados, MRUs) |
+| `clean_selected` | Deleta arquivos/pastas (falha silenciosa em arquivos em uso) e **exporta backup JSON para `%USERPROFILE%\CClinearBackups` antes de apagar qualquer valor/chave de registro** |
+| `get_startup_items` / `toggle_startup_item` | Lê Run/RunOnce (HKCU, HKLM, WOW6432Node) + pastas Startup; **desabilitar nunca destrói**: o valor migra para `HKCU\Software\CClinear\StartupDisabled` e pode ser restaurado |
+| `get_installed_programs` / `uninstall_program` | Enumera as 3 chaves Uninstall e executa o `UninstallString` |
+| `analyze_disk` | Tamanho recursivo **paralelo** (`Parallel.ForEach`) das pastas do caminho |
+
+**4. Por que WPF/WebView2 e não Tauri?** Portabilidade: a UI React de um projeto Tauri funciona em qualquer host que forneça `__TAURI_INTERNALS__`. Sem Rust instalado, o mesmo frontend roda sobre um host C# de ~2,5 MB. O backend C# substitui 1:1 os comandos Tauri originais.
+
+**5. Segurança.** `asInvoker` (sem pedir admin por padrão — itens de sistema que exigem elevation simplesmente falham e são contados como "itens pulados"); nada é enviado para fora do computador; nenhum updater; nenhum código ofuscado.
+
 ## Estrutura
 
 ```
