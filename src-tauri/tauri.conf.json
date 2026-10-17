@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CClinear",
+  "version": "1.0.0",
+  "identifier": "com.cc-linear.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CClinear",
+        "width": 960,
+        "height": 640,
+        "minWidth": 800,
+        "minHeight": 520,
+        "center": true,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "licenseFile": null
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "fs": {
+      "scope": {
+        "allowedPaths": ["$APPDATA/*", "$TEMP/*", "$LOCALAPPDATA/*"]
+      }
+    },
+    "shell": {
+      "scope": {
+        "allow": [
+          { "name": "cmd", "args": ["/c", "del", "/q", "/s", "*"] },
+          { "name": "powershell", "args": ["-Command", "*"] }
+        ]
+      }
+    }
+  }
+}

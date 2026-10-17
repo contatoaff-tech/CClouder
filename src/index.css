@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --border: #30363d;
+  --card: #161b22;
+  --card-hover: #1c2128;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --sidebar: #0d1117;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+  }
+}
+
+.glass {
+  background: rgba(22, 27, 34, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-bg;
+}
+
+.btn-primary {
+  @apply btn bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] focus:ring-[var(--accent)];
+}
+
+.btn-secondary {
+  @apply btn bg-[var(--card)] text-[var(--fg)] border border-[var(--border)] hover:bg-[var(--card-hover)] focus:ring-[var(--border)];
+}
+
+.btn-danger {
+  @apply btn bg-[var(--danger)] text-white hover:opacity-90 focus:ring-[var(--danger)];
+}
+
+.btn-ghost {
+  @apply btn text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--card)] focus:ring-[var(--border)];
+}
+
+.input {
+  @apply w-full px-3 py-2 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--fg)] placeholder-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-all duration-150;
+}
+
+.card {
+  @apply bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden transition-all duration-200 hover:border-[var(--accent)];
+}
+
+.sidebar-item {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--card)] transition-colors duration-150 cursor-pointer;
+}
+
+.sidebar-item.active {
+  @apply text-[var(--accent)] bg-[var(--card)] border-l-2 border-[var(--accent)];
+}
+
+.category-header {
+  @apply flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--card)];
+}
+
+.item-row {
+  @apply flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] hover:bg-[var(--card-hover)] transition-colors duration-100;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+
+.tooltip {
+  @apply absolute z-50 px-2 py-1 text-xs bg-[var(--card)] border border-[var(--border)] rounded shadow-lg pointer-events-none opacity-0 transition-opacity duration-150;
+}
+
+.tooltip.visible {
+  @apply opacity-100;
+}
+
+.anim-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.anim-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
