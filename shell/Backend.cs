@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace CClinear;
 
-public static class Backend
+public static partial class Backend
 {
     public static CancellationTokenSource? ScanCts;
 

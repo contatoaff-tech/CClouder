@@ -191,6 +191,35 @@ window.chrome.webview.addEventListener('message', (e) => {
                     Reply(req, result);
                     break;
                 }
+                case "get_drivers":
+                {
+                    var result = await Task.Run(() => Backend.GetDrivers());
+                    Reply(req, result);
+                    break;
+                }
+                case "search_driver_web":
+                {
+                    string name = payload.GetProperty("name").GetString() ?? "";
+                    string mfr = payload.TryGetProperty("manufacturer", out var m) ? m.GetString() ?? "" : "";
+                    string ver = payload.TryGetProperty("version", out var v) ? v.GetString() ?? "" : "";
+                    Reply(req, Backend.SearchDriverWeb(name, mfr, ver));
+                    break;
+                }
+                case "backup_drivers":
+                {
+                    var result = await Task.Run(() => Backend.BackupDrivers());
+                    Reply(req, result);
+                    break;
+                }
+                case "create_restore_point":
+                {
+                    var result = await Task.Run(() => Backend.CreateRestorePoint());
+                    Reply(req, result);
+                    break;
+                }
+                case "verify_capabilities":
+                    Reply(req, Backend.VerifyCapabilities());
+                    break;
                 default:
                     ReplyError(req, $"comando desconhecido: {cmd}");
                     break;

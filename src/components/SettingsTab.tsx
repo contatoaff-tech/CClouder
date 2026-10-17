@@ -203,7 +203,7 @@ export default function SettingsTab() {
                   <Zap className="w-10 h-10 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-[var(--fg)] mb-1">CClinear</h3>
-                <p className="text-[var(--muted)] mb-4">Versão 1.0.0</p>
+                <p className="text-[var(--muted)] mb-4">Versão 1.1.0</p>
                 <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-6">
                   Limpador de sistema open source, leve e moderno. Inspirado no CCleaner,
                   construído do zero com Rust + Tauri + React.

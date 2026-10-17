@@ -13,6 +13,7 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 | **Ferramentas** | Acesso rápido ao cleanmgr e pastas de sistema |
 | **Inicialização** | Gerenciador de programas de inicialização (Run/RunOnce HKCU+HKLM+WOW6432Node, pastas Startup) — desabilitar é reversível (armazenado em `HKCU\Software\CClinear\StartupDisabled`) |
 | **Desinstalar** | Lista programas instalados e executa o desinstalador |
+| **Drivers** *(v1.1)* | Escaneia todos os drivers assinados via WMI (Win32_PnPSignedDriver), **busca na web** por atualização de cada driver (abre a busca no navegador), **backup completo dos drivers** via `pnputil /export-driver` e **ponto de restauração** do Windows antes de mexer em qualquer driver — com **verificação de capacidades** em tempo real (admin, pnputil, PowerShell, System Restore) |
 | **Disco** | Análise paralela: 20 maiores pastas por tamanho |
 
 ## Como funciona

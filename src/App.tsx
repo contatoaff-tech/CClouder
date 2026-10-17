@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { HardDrive, Database, Wrench, Rocket, Trash2, Settings, Sparkles } from 'lucide-react'
+import { HardDrive, Database, Wrench, Rocket, Trash2, Settings, Sparkles, Cpu } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import CleanerTab from './components/CleanerTab'
 import RegistryTab from './components/RegistryTab'
+import DriverTab from './components/DriverTab'
 import ToolsTab from './components/ToolsTab'
 import StartupTab from './components/StartupTab'
 import UninstallTab from './components/UninstallTab'
@@ -74,11 +75,12 @@ interface FolderSize {
   file_count: number
 }
 
-type Tab = 'cleaner' | 'registry' | 'tools' | 'startup' | 'uninstall' | 'disk' | 'settings'
+type Tab = 'cleaner' | 'registry' | 'drivers' | 'tools' | 'startup' | 'uninstall' | 'disk' | 'settings'
 
 const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'cleaner', label: 'Limpeza', icon: <Sparkles className="w-5 h-5" /> },
   { id: 'registry', label: 'Registro', icon: <Database className="w-5 h-5" /> },
+  { id: 'drivers', label: 'Drivers', icon: <Cpu className="w-5 h-5" /> },
   { id: 'tools', label: 'Ferramentas', icon: <Wrench className="w-5 h-5" /> },
   { id: 'startup', label: 'Inicialização', icon: <Rocket className="w-5 h-5" /> },
   { id: 'uninstall', label: 'Desinstalar', icon: <Trash2 className="w-5 h-5" /> },
@@ -331,6 +333,7 @@ export default function App() {
               formatNumber={formatNumber}
             />
           )}
+          {activeTab === 'drivers' && <DriverTab />}
           {activeTab === 'registry' && (
             <RegistryTab
               categories={scanResult?.categories || categories}
