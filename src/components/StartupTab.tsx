@@ -1,5 +1,6 @@
-import { ReactNode, useState, useEffect } from 'react'
-import { Sparkles, Play, Pause, Trash2, ExternalLink, FolderOpen, ChevronDown, ChevronUp, Search, Filter, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { ReactNode, useState, useEffect, useCallback } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { Sparkles, Play, Pause, Trash2, ExternalLink, FolderOpen, ChevronDown, ChevronUp, Search, Filter, Loader2, CheckCircle, XCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
 
 interface StartupItem {
   name: string
@@ -116,6 +117,7 @@ export default function StartupTab({ items, onToggle, onRefresh, loading }: Star
           </div>
         </div>
       )}
+      <ScheduledTasksSection />
     </div>
   )
 }
@@ -191,5 +193,95 @@ function StartupRow({
         </div>
       </td>
     </tr>
+  )
+}
+// ==================== Tarefas Agendadas de Logon/Boot (v1.2) ====================
+
+interface ScheduledTask {
+  name: string
+  tpath: string
+  state: string
+  action: string
+}
+
+function ScheduledTasksSection() {
+  const [tasks, setTasks] = useState<ScheduledTask[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setTasks(await invoke<ScheduledTask[]>('get_scheduled_tasks'))
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const toggle = async (t: ScheduledTask) => {
+    setBusy(t.tpath + t.name)
+    try {
+      const enable = t.state !== 'Disabled'
+      await invoke('toggle_scheduled_task', { tpath: t.tpath, name: t.name, enable: !enable })
+      await load()
+    } catch (e) {
+      alert(String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="card p-5 space-y-3 anim-fade-in">
+      <div className="flex items-center gap-3">
+        <Clock className="w-5 h-5 text-[var(--accent)]" />
+        <h3 className="font-semibold">Tarefas Agendadas (logon / boot)</h3>
+        <span className="text-sm text-[var(--muted)]">{tasks.length}</span>
+        <div className="flex-1" />
+        <button onClick={load} disabled={loading} className="btn-ghost !p-2" title="Atualizar">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+        <button onClick={() => setExpanded(e => !e)} className="btn-ghost !text-xs">
+          {expanded ? 'Recolher' : 'Expandir'}
+        </button>
+      </div>
+      {loading ? (
+        <p className="text-sm text-[var(--muted)]">consultando agendador do Windows…</p>
+      ) : tasks.length === 0 ? (
+        <p className="text-sm text-[var(--muted)]">nenhuma tarefa de logon/boot encontrada</p>
+      ) : (
+        <div className="space-y-1.5 max-h-96 overflow-y-auto scrollbar-thin">
+          {(expanded ? tasks : tasks.slice(0, 8)).map(t => {
+            const disabled = t.state === 'Disabled'
+            return (
+              <div key={t.tpath + t.name} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+                <button
+                  onClick={() => toggle(t)}
+                  disabled={busy === t.tpath + t.name}
+                  className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${disabled ? 'bg-[var(--border)]' : 'bg-[var(--success)]'}`}
+                  title={disabled ? 'Habilitar' : 'Desabilitar'}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${disabled ? 'left-0.5' : 'left-4'}`} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm truncate">{t.name}</div>
+                  <div className="text-xs text-[var(--muted)] font-mono truncate" title={t.action}>{t.action || t.tpath}</div>
+                </div>
+                <span className="text-xs text-[var(--accent)] shrink-0 hidden sm:block">{t.tpath}</span>
+              </div>
+            )
+          })}
+          {!expanded && tasks.length > 8 && (
+            <p className="text-xs text-[var(--muted)] text-center py-1">… mais {tasks.length - 8} tarefas</p>
+          )}
+        </div>
+      )}
+      <p className="text-xs text-[var(--muted)]">tarefas do sistema (\Microsoft\) podem exigir administrador para alterar</p>
+    </div>
   )
 }

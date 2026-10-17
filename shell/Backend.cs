@@ -137,10 +137,21 @@ public static partial class Backend
 
     // ============================ SCAN ============================
 
-    public static async Task RunScan(Action<object> onProgress, Action<object> onComplete,
+    public static async Task<object> RunScan(Action<object> onProgress, Action<object> onComplete,
         List<string> selected, CancellationToken ct)
     {
         await Task.Yield();
+        var (scanned, totalSize, totalCount) = await ScanCategories(selected, onProgress, ct);
+        var result = new { categories = scanned, total_size = totalSize, total_count = totalCount };
+        onComplete(result);
+        return result;
+    }
+
+    static async Task<(List<Category> scanned, ulong totalSize, int totalCount)> ScanCategories(
+        List<string> selected, Action<object> onProgress, CancellationToken ct)
+    {
+        await Task.Yield();
+        lock (_exclLock) EnsureExclusions();
         var cats = BuildCategories().Where(c => selected.Contains(c.id)).ToList();
         ulong totalSize = 0;
         int totalCount = 0;
@@ -163,9 +174,7 @@ public static partial class Backend
             }
             scanned.Add(cat);
         }
-
-        onProgress(new { current_category = "Concluído", progress = 1.0, found_size = totalSize, found_count = totalCount });
-        onComplete(new { categories = scanned, total_size = totalSize, total_count = totalCount });
+        return (scanned, totalSize, totalCount);
     }
 
     static (ulong, int) ScanItem(Item it)
@@ -202,6 +211,7 @@ public static partial class Backend
     {
         try
         {
+            if (IsExcluded(f)) return;
             var fi = new FileInfo(f);
             if (cutoff.HasValue && fi.LastWriteTime > cutoff.Value) return;
             size += (ulong)fi.Length;
@@ -217,7 +227,10 @@ public static partial class Backend
             foreach (var f in Directory.EnumerateFiles(dir))
                 AddFile(f, cutoff, ref size, ref count);
             foreach (var d in Directory.EnumerateDirectories(dir))
+            {
+                if (IsExcluded(d)) continue;
                 Walk(d, cutoff, ref size, ref count);
+            }
         }
         catch { }
     }
@@ -229,6 +242,7 @@ public static partial class Backend
         ulong freed = 0;
         int freedCount = 0;
         var errors = new List<string>();
+        lock (_exclLock) EnsureExclusions();
         if (payload.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
         {
             foreach (var el in items.EnumerateArray())
@@ -285,6 +299,7 @@ public static partial class Backend
     {
         try
         {
+            if (IsExcluded(f)) return;
             var fi = new FileInfo(f);
             if (cutoff.HasValue && fi.LastWriteTime > cutoff.Value) return;
             ulong len = (ulong)fi.Length;
@@ -303,6 +318,7 @@ public static partial class Backend
                 DeleteFile(f, cutoff, ref freed, ref count);
             foreach (var d in Directory.EnumerateDirectories(dir))
             {
+                if (IsExcluded(d)) continue;
                 CleanWalk(d, cutoff, ref freed, ref count);
                 try { Directory.Delete(d, false); } catch { }
             }
@@ -666,9 +682,11 @@ public static partial class Backend
 
     // ============================ INICIALIZACAO ============================
 
-    public static List<object> GetStartupItems()
+    sealed record StartupEntry(string Name, string Path, bool Enabled, string Location);
+
+    static List<StartupEntry> CollectStartupItems()
     {
-        var items = new List<object>();
+        var entries = new List<StartupEntry>();
         using var store = SafeOpen(Registry.CurrentUser, StorePath);
         var storeNames = store == null
             ? new HashSet<string>()
@@ -682,7 +700,7 @@ public static partial class Backend
             {
                 string data = k.GetValue(name) as string ?? "";
                 bool enabled = !storeNames.Contains(label + "::" + name);
-                items.Add(new { name, path = data, enabled, location = label });
+                entries.Add(new StartupEntry(name, data, enabled, label));
             }
         }
 
@@ -694,7 +712,7 @@ public static partial class Backend
                 int idx = sn.IndexOf("::", StringComparison.Ordinal);
                 string locName = idx > 0 ? sn[..idx] : sn;
                 string name = idx > 0 ? sn[(idx + 2)..] : sn;
-                items.Add(new { name, path = data, enabled = false, location = locName });
+                entries.Add(new StartupEntry(name, data, false, locName));
             }
         }
 
@@ -706,11 +724,18 @@ public static partial class Backend
         {
             if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
             foreach (var f in Directory.GetFiles(dir))
-                items.Add(new { name = Path.GetFileNameWithoutExtension(f), path = f, enabled = true, location = locName });
+                entries.Add(new StartupEntry(Path.GetFileNameWithoutExtension(f), f, true, locName));
         }
 
-        return items;
+        return entries;
     }
+
+    static int CountEnabledStartup() => CollectStartupItems().Count(e => e.Enabled);
+
+    public static List<object> GetStartupItems() =>
+        CollectStartupItems()
+            .Select(e => (object)new { name = e.Name, path = e.Path, enabled = e.Enabled, location = e.Location })
+            .ToList();
 
     static (RegistryKey hive, string sub)? ResolveLocation(string label)
     {

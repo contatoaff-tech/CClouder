@@ -8,11 +8,12 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 
 | Aba | O que faz |
 |---|---|
-| **Limpeza** | Temp, prefetch, logs, relatórios de erro, caches de navegadores (Edge/Chrome/Firefox/Brave/Opera) e apps (Spotify, Discord, Steam, VS Code, Teams, Adobe, NVIDIA) |
+| **Limpeza** | Temp, prefetch, logs, relatórios de erro, caches de navegadores (Edge/Chrome/Firefox/Brave/Opera) e apps (Spotify, Discord, Steam, VS Code, Teams, Adobe, NVIDIA) · **Health Check (v1.2)**: score de saúde com "Corrigir tudo" · **exclusões globais** (v1.2): pastas/padrões ignorados em todas as análises e limpezas |
 | **Registro** | Desinstaladores órfãos, SharedDLLs, COM/ActiveX, extensões inválidas, MRUs, fontes, App Paths — **com backup JSON automático** em `%USERPROFILE%\CClinearBackups` |
-| **Ferramentas** | Acesso rápido ao cleanmgr e pastas de sistema |
-| **Inicialização** | Gerenciador de programas de inicialização (Run/RunOnce HKCU+HKLM+WOW6432Node, pastas Startup) — desabilitar é reversível (armazenado em `HKCU\Software\CClinear\StartupDisabled`) |
+| **Ferramentas** | Acesso rápido ao cleanmgr e pastas de sistema · **gerenciador de menu de contexto** (v1.2): habilita/desabilita extensões do botão direito de forma reversível |
+| **Inicialização** | Gerenciador de programas de inicialização (Run/RunOnce HKCU+HKLM+WOW6432Node, pastas Startup) + **tarefas agendadas de logon/boot** (v1.2) — desabilitar é reversível |
 | **Desinstalar** | Lista programas instalados e executa o desinstalador |
+| **Arquivos** *(v1.2)* | **Buscador de Duplicatas** (hash parcial + SHA-256, com pré-seleção inteligente) e **Triturador de Arquivos** (sobrescreve com dados aleatórios, renomeia e apaga — irreversível) |
 | **Drivers** *(v1.1)* | Escaneia todos os drivers assinados via WMI (Win32_PnPSignedDriver), **busca na web** por atualização de cada driver (abre a busca no navegador), **backup completo dos drivers** via `pnputil /export-driver` e **ponto de restauração** do Windows antes de mexer em qualquer driver — com **verificação de capacidades** em tempo real (admin, pnputil, PowerShell, System Restore) |
 | **Disco** | Análise paralela: 20 maiores pastas por tamanho |
 

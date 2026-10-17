@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { ChevronDown, ChevronUp, CheckSquare, Square, MinusSquare, Trash2, Sparkles, FolderOpen, Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
+import HealthCheckCard from './HealthCheckCard'
 
 interface CleanItem {
   id: string
@@ -61,6 +62,7 @@ export default function CleanerTab({
 
   return (
     <div className="space-y-4 anim-fade-in">
+      <HealthCheckCard />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-[var(--fg)]">Limpeza do Sistema</h2>

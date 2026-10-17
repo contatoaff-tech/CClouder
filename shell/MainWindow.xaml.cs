@@ -220,6 +220,75 @@ window.chrome.webview.addEventListener('message', (e) => {
                 case "verify_capabilities":
                     Reply(req, Backend.VerifyCapabilities());
                     break;
+                case "find_duplicates":
+                {
+                    string path = payload.GetProperty("path").GetString() ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    long min = payload.TryGetProperty("min_size", out var ms) ? ms.GetInt64() : 1048576;
+                    var result = await Task.Run(() => Backend.FindDuplicates(path, min));
+                    Reply(req, result);
+                    break;
+                }
+                case "delete_files":
+                {
+                    var paths = payload.GetProperty("paths").EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToArray();
+                    var result = await Task.Run(() => Backend.DeleteFiles(paths));
+                    Reply(req, result);
+                    break;
+                }
+                case "shred_paths":
+                {
+                    var paths = payload.GetProperty("paths").EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToArray();
+                    var result = await Task.Run(() => Backend.ShredPaths(paths));
+                    Reply(req, result);
+                    break;
+                }
+                case "get_context_menu":
+                    Reply(req, Backend.GetContextMenuHandlers());
+                    break;
+                case "toggle_context_menu":
+                {
+                    string loc = payload.GetProperty("location").GetString() ?? "";
+                    string key = payload.GetProperty("key").GetString() ?? "";
+                    bool enable = payload.GetProperty("enable").GetBoolean();
+                    Reply(req, Backend.ToggleContextMenuHandler(loc, key, enable));
+                    break;
+                }
+                case "get_scheduled_tasks":
+                {
+                    var result = await Task.Run(() => Backend.GetScheduledTasksStartup());
+                    Reply(req, result);
+                    break;
+                }
+                case "toggle_scheduled_task":
+                {
+                    string tpath = payload.GetProperty("tpath").GetString() ?? "";
+                    string name = payload.GetProperty("name").GetString() ?? "";
+                    bool enable = payload.GetProperty("enable").GetBoolean();
+                    var result = await Task.Run(() => Backend.ToggleScheduledTask(tpath, name, enable));
+                    Reply(req, result);
+                    break;
+                }
+                case "get_exclusions":
+                    Reply(req, Backend.GetExclusions());
+                    break;
+                case "add_exclusion":
+                {
+                    string p = payload.GetProperty("path").GetString() ?? "";
+                    Reply(req, Backend.AddExclusion(p));
+                    break;
+                }
+                case "remove_exclusion":
+                {
+                    string p = payload.GetProperty("path").GetString() ?? "";
+                    Reply(req, Backend.RemoveExclusion(p));
+                    break;
+                }
+                case "run_health_check":
+                {
+                    var result = await Task.Run(() => Backend.RunHealthCheck(tok => Emit("scan-progress", tok)));
+                    Reply(req, result);
+                    break;
+                }
                 default:
                     ReplyError(req, $"comando desconhecido: {cmd}");
                     break;

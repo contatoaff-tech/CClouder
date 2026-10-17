@@ -1,5 +1,6 @@
-import { ReactNode, useState } from 'react'
-import { Settings, User, Shield, Palette, Bell, Database, HardDrive, Sparkles, Zap, Info, Github, ExternalLink, Moon, Sun, Monitor, Download, Upload, RefreshCw, CheckCircle, AlertTriangle, Key, Lock, Unlock } from 'lucide-react'
+import { ReactNode, useState, useEffect, useCallback } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { Settings, User, Shield, Palette, Bell, Database, HardDrive, Sparkles, Zap, Info, Github, ExternalLink, Moon, Sun, Monitor, Download, Upload, RefreshCw, CheckCircle, AlertTriangle, Key, Lock, Unlock, Plus, X } from 'lucide-react'
 
 export default function SettingsTab() {
   const [activeSection, setActiveSection] = useState<'general' | 'appearance' | 'cleaning' | 'advanced' | 'about'>('general')
@@ -144,6 +145,10 @@ export default function SettingsTab() {
                   <Toggle checked={autoScan} onChange={setAutoScan} />
                 </SettingItem>
               </SettingGroup>
+
+              <SettingGroup title="Exclusões">
+                <ExclusionsManager />
+              </SettingGroup>
             </SettingsSection>
           )}
 
@@ -203,7 +208,7 @@ export default function SettingsTab() {
                   <Zap className="w-10 h-10 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-[var(--fg)] mb-1">CClinear</h3>
-                <p className="text-[var(--muted)] mb-4">Versão 1.1.0</p>
+                <p className="text-[var(--muted)] mb-4">Versão 1.2.0</p>
                 <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-6">
                   Limpador de sistema open source, leve e moderno. Inspirado no CCleaner,
                   construído do zero com Rust + Tauri + React.
@@ -321,5 +326,79 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
         checked ? 'bg-[var(--accent)] peer-checked:after:translate-x-full' : 'bg-[var(--border)]'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
     </label>
+  )
+}
+// ==================== Exclusões (v1.2) ====================
+
+function ExclusionsManager() {
+  const [items, setItems] = useState<string[]>([])
+  const [input, setInput] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setItems(await invoke<string[]>('get_exclusions'))
+    } catch (e) {
+      setError(String(e))
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const add = async () => {
+    const p = input.trim().replace(/^"|"$/g, '')
+    if (!p) return
+    try {
+      const r = await invoke<{ ok: boolean; exclusions: string[] }>('add_exclusion', { path: p })
+      setItems(r.exclusions)
+      setInput('')
+      setError(null)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const remove = async (p: string) => {
+    try {
+      const r = await invoke<{ ok: boolean; exclusions: string[] }>('remove_exclusion', { path: p })
+      setItems(r.exclusions)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder="Pasta ou padrão (ex: C:\Dev, *.tmp)…"
+          className="input flex-1 font-mono text-sm"
+        />
+        <button onClick={add} className="btn-secondary flex items-center gap-1.5 !text-sm">
+          <Plus className="w-4 h-4" /> Adicionar
+        </button>
+      </div>
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
+      <p className="text-xs text-[var(--muted)]">
+        Pastas e padrões aqui são <strong className="text-[var(--fg)]">ignorados em todas as análises e limpezas</strong> — incluídas nas limpezas agendadas.
+      </p>
+      {items.length === 0 ? (
+        <p className="text-sm text-[var(--muted)]">Nenhuma exclusão configurada.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {items.map(p => (
+            <div key={p} className="flex items-center gap-2 px-3 py-2 bg-[var(--bg)] rounded-lg border border-[var(--border)]">
+              <span className="text-xs font-mono truncate flex-1">{p}</span>
+              <button onClick={() => remove(p)} className="text-[var(--muted)] hover:text-[var(--danger)]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
