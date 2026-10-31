@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { ChevronRight, ChevronDown, CheckSquare, Square, MinusSquare, HardDrive, Zap, Sparkles, Database, Wrench, Rocket, Trash2, Settings, Cpu, Files } from 'lucide-react'
+import { ChevronRight, ChevronDown, CheckSquare, Square, MinusSquare, HardDrive, Zap, Sparkles, Database, Wrench, Rocket, Trash2, Settings, Cpu, Files, Activity } from 'lucide-react'
 
 interface Tab {
   id: string
@@ -32,6 +32,7 @@ const tabIcons: Record<string, ReactNode> = {
   registry: <Database className="w-5 h-5" />,
   drivers: <Cpu className="w-5 h-5" />,
   files: <Files className="w-5 h-5" />,
+  processes: <Activity className="w-5 h-5" />,
   tools: <Wrench className="w-5 h-5" />,
   startup: <Rocket className="w-5 h-5" />,
   uninstall: <Trash2 className="w-5 h-5" />,
@@ -164,7 +165,7 @@ export default function Sidebar({
 
       <div className="p-3 border-t border-[var(--border)]">
         <div className="text-xs text-[var(--muted)] text-center">
-          CClinear v1.2.0 — MIT License
+          CClinear v1.3.0 — MIT License
         </div>
       </div>
     </aside>

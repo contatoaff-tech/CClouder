@@ -9,7 +9,7 @@
     <AssemblyName>CClinear</AssemblyName>
     <RootNamespace>CClinear</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Product>CClinear</Product>
     <Description>Limpador de sistema open source, leve e sem telemetria</Description>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

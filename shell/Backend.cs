@@ -476,7 +476,15 @@ public static partial class Backend
         if (orphans.Count == 0) return (0, 0);
         var backups = new List<object>();
         foreach (var (b, sub) in orphans)
-            backups.Add(new { key = FullName(b, sub), subkey = sub });
+        {
+            object? tree = null;
+            using (var parent = SafeOpen(b.Hive, b.Path))
+            {
+                using var sk = parent == null ? null : SafeOpen(parent, sub);
+                if (sk != null) tree = ExportKeyTree(sk);
+            }
+            backups.Add(new { key = FullName(b, sub), subkey = sub, hive = b.Label, parent = b.Path, tree });
+        }
         SaveBackup("reg_uninstall", backups);
         int n = 0;
         foreach (var g in orphans.GroupBy(o => (o.b.Label, o.b.Path)))
@@ -527,7 +535,16 @@ public static partial class Backend
         var names = OrphanClsidNames();
         if (names.Count == 0) return (0, 0);
         var backups = new List<object>();
-        foreach (var s in names) backups.Add(new { key = $@"HKCR\CLSID\{s}", subkey = s });
+        foreach (var s in names)
+        {
+            object? tree = null;
+            using (var clsid = SafeOpen(Registry.ClassesRoot, "CLSID"))
+            {
+                using var sk = clsid == null ? null : SafeOpen(clsid, s);
+                if (sk != null) tree = ExportKeyTree(sk);
+            }
+            backups.Add(new { key = $@"HKCR\CLSID\{s}", subkey = s, hive = "HKCR", parent = "CLSID", tree });
+        }
         SaveBackup("reg_com", backups);
         int n = 0;
         using (var k = OpenWritable(Registry.ClassesRoot, "CLSID")
@@ -567,7 +584,13 @@ public static partial class Backend
         var names = OrphanExtensionNames();
         if (names.Count == 0) return (0, 0);
         var backups = new List<object>();
-        foreach (var s in names) backups.Add(new { key = $@"HKCR\{s}", subkey = s });
+        foreach (var s in names)
+        {
+            object? tree = null;
+            using (var sk = SafeOpen(Registry.ClassesRoot, s))
+                if (sk != null) tree = ExportKeyTree(sk);
+            backups.Add(new { key = $@"HKCR\{s}", subkey = s, hive = "HKCR", parent = "", tree });
+        }
         SaveBackup("reg_file_ext", backups);
         int n = 0;
         foreach (var s in names)
@@ -666,7 +689,16 @@ public static partial class Backend
         var names = OrphanAppPathNames();
         if (names.Count == 0) return (0, 0);
         var backups = new List<object>();
-        foreach (var s in names) backups.Add(new { key = $@"HKLM\{AppPathsPath}\{s}", subkey = s });
+        foreach (var s in names)
+        {
+            object? tree = null;
+            using (var parent = SafeOpen(Registry.LocalMachine, AppPathsPath))
+            {
+                using var sk = parent == null ? null : SafeOpen(parent, s);
+                if (sk != null) tree = ExportKeyTree(sk);
+            }
+            backups.Add(new { key = $@"HKLM\{AppPathsPath}\{s}", subkey = s, hive = "HKLM", parent = AppPathsPath, tree });
+        }
         SaveBackup("reg_help", backups);
         int n = 0;
         using (var k = OpenWritable(Registry.LocalMachine, AppPathsPath)

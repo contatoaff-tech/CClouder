@@ -289,6 +289,60 @@ window.chrome.webview.addEventListener('message', (e) => {
                     Reply(req, result);
                     break;
                 }
+                case "get_software_updates":
+                {
+                    var result = await Task.Run(() => Backend.GetSoftwareUpdates());
+                    Reply(req, result);
+                    break;
+                }
+                case "upgrade_software":
+                {
+                    string id = payload.GetProperty("id").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.UpgradeSoftware(id));
+                    Reply(req, result);
+                    break;
+                }
+                case "get_processes":
+                {
+                    var result = await Task.Run(() => Backend.GetProcesses());
+                    Reply(req, result);
+                    break;
+                }
+                case "optimize_memory":
+                {
+                    var result = await Task.Run(() => Backend.OptimizeMemory());
+                    Reply(req, result);
+                    break;
+                }
+                case "kill_process":
+                {
+                    int pid = payload.GetProperty("pid").GetInt32();
+                    Reply(req, Backend.KillProcess(pid));
+                    break;
+                }
+                case "list_registry_backups":
+                    Reply(req, Backend.ListRegistryBackups());
+                    break;
+                case "restore_registry_backup":
+                {
+                    string file = payload.GetProperty("file").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.RestoreRegistryBackup(file));
+                    Reply(req, result);
+                    break;
+                }
+                case "check_app_update":
+                {
+                    var result = await Task.Run(() => Backend.CheckAppUpdate());
+                    Reply(req, result);
+                    break;
+                }
+                case "download_app_update":
+                {
+                    string url = payload.GetProperty("url").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.DownloadAppUpdate(url));
+                    Reply(req, result);
+                    break;
+                }
                 default:
                     ReplyError(req, $"comando desconhecido: {cmd}");
                     break;

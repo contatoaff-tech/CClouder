@@ -1,5 +1,6 @@
-import { ReactNode, useState } from 'react'
-import { ChevronDown, ChevronUp, CheckSquare, Square, MinusSquare, Trash2, Database, FolderOpen, AlertCircle, CheckCircle } from 'lucide-react'
+import { ReactNode, useState, useEffect, useCallback } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { ChevronDown, ChevronUp, CheckSquare, Square, MinusSquare, Trash2, Database, FolderOpen, AlertCircle, CheckCircle, History, Loader2, RotateCcw } from 'lucide-react'
 
 interface CleanItem {
   id: string
@@ -227,6 +228,91 @@ function RegistryItemRow({
         <button className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Detalhes">
           <FolderOpen className="w-4 h-4" />
         </button>
+      )}
+      <RegistryBackupsCard />
+    </div>
+  )
+}
+// ==================== Backups de Registro restauráveis (v1.3) ====================
+
+interface RegBackup {
+  file: string
+  name: string
+  date: string
+  size: number
+  entries: number
+  restorable: boolean
+}
+
+function RegistryBackupsCard() {
+  const [backups, setBackups] = useState<RegBackup[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setBackups(await invoke<RegBackup[]>('list_registry_backups'))
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const restore = async (b: RegBackup) => {
+    if (!confirm(`Restaurar o backup ${b.name}? As entradas removidas voltarao ao registro.`)) return
+    setBusy(b.file)
+    setStatus(null)
+    try {
+      const r = await invoke<{ restored_values: number; restored_keys: number; skipped: number }>('restore_registry_backup', { file: b.file })
+      setStatus(`Restaurado: ${r.restored_values} valores, ${r.restored_keys} chaves${r.skipped ? ` - ${r.skipped} ignorados (backups antigos sem conteudo)` : ''}`)
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex items-center gap-3">
+        <History className="w-5 h-5 text-[var(--accent)]" />
+        <h3 className="font-semibold">Backups do Registro</h3>
+        <span className="text-sm text-[var(--muted)]">{backups.length}</span>
+        <div className="flex-1" />
+        <button onClick={load} disabled={loading} className="btn-ghost !p-2" title="Atualizar">
+          <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+      {status && <p className="text-xs text-[var(--muted)]">{status}</p>}
+      {loading ? (
+        <p className="text-sm text-[var(--muted)] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> carregando...</p>
+      ) : backups.length === 0 ? (
+        <p className="text-sm text-[var(--muted)]">Nenhum backup ainda - eles sao criados automaticamente antes de cada limpeza de registro.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-56 overflow-y-auto scrollbar-thin">
+          {backups.map(b => (
+            <div key={b.file} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-mono truncate">{b.name}</div>
+                <div className="text-xs text-[var(--muted)]">{b.date} - {b.entries} entradas</div>
+              </div>
+              <button
+                onClick={() => restore(b)}
+                disabled={busy !== null}
+                className="btn-secondary !py-1 !text-xs flex items-center gap-1"
+                title={b.restorable ? 'Restaurar' : 'Backup antigo (conteudo de subchaves nao capturado)'}
+              >
+                {busy === b.file ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                Restaurar
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

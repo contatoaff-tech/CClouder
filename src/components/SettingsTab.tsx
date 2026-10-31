@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { Settings, User, Shield, Palette, Bell, Database, HardDrive, Sparkles, Zap, Info, Github, ExternalLink, Moon, Sun, Monitor, Download, Upload, RefreshCw, CheckCircle, AlertTriangle, Key, Lock, Unlock, Plus, X } from 'lucide-react'
+import { Settings, User, Shield, Palette, Bell, Database, HardDrive, Sparkles, Zap, Info, Github, ExternalLink, Moon, Sun, Monitor, Download, Upload, RefreshCw, CheckCircle, AlertTriangle, Key, Lock, Unlock, Plus, X, Loader2 } from 'lucide-react'
 
 export default function SettingsTab() {
   const [activeSection, setActiveSection] = useState<'general' | 'appearance' | 'cleaning' | 'advanced' | 'about'>('general')
@@ -208,22 +208,24 @@ export default function SettingsTab() {
                   <Zap className="w-10 h-10 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-[var(--fg)] mb-1">CClinear</h3>
-                <p className="text-[var(--muted)] mb-4">Versão 1.2.0</p>
+                <p className="text-[var(--muted)] mb-4">Versão 1.3.0</p>
                 <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-6">
-                  Limpador de sistema open source, leve e moderno. Inspirado no CCleaner,
-                  construído do zero com Rust + Tauri + React.
+                  Limpador de sistema open source, leve e moderno. Construído do zero com
+                  C#/.NET 10 + WebView2 (shell nativo) e React + Tailwind (interface).
                 </p>
                 <div className="flex justify-center gap-3">
-                  <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
+                  <a href="https://github.com/contatoaff-tech/CClinear" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
                     <Github className="w-4 h-4" />
                     GitHub
                   </a>
-                  <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
+                  <a href="https://github.com/contatoaff-tech/CClinear/releases/latest" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
                     <ExternalLink className="w-4 h-4" />
-                    Site
+                    Releases
                   </a>
                 </div>
               </div>
+
+              <AppUpdateCard />
 
               <SettingGroup title="Licença">
                 <div className="card p-4">
@@ -234,9 +236,9 @@ export default function SettingsTab() {
               </SettingGroup>
 
               <SettingGroup title="Sistema">
-                <SettingItem label="Versão do Tauri" description="2.x" ><span className="text-[var(--muted)] font-mono">2.0.0</span></SettingItem>
-                <SettingItem label="Versão do Rust" description="Compilado com Rust" ><span className="text-[var(--muted)] font-mono">1.79+</span></SettingItem>
-                <SettingItem label="Arquitetura" description="Alvo de compilação" ><span className="text-[var(--muted)] font-mono">x86_64-pc-windows-msvc</span></SettingItem>
+                <SettingItem label="Runtime" description="Shell nativo" ><span className="text-[var(--muted)] font-mono">.NET 10 + WPF</span></SettingItem>
+                <SettingItem label="WebView" description="Motor da interface" ><span className="text-[var(--muted)] font-mono">Edge WebView2</span></SettingItem>
+                <SettingItem label="Arquitetura" description="Alvo de compilação" ><span className="text-[var(--muted)] font-mono">win-x64</span></SettingItem>
               </SettingGroup>
             </SettingsSection>
           )}
@@ -400,5 +402,81 @@ function ExclusionsManager() {
         </div>
       )}
     </div>
+  )
+}
+
+// ==================== Auto-update (v1.3) ====================
+
+interface UpdateInfo {
+  current: string
+  latest: string
+  has_update: boolean
+  url: string
+  size: number
+  notes: string
+}
+
+function AppUpdateCard() {
+  const [info, setInfo] = useState<UpdateInfo | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+
+  const check = async () => {
+    setChecking(true)
+    setStatus(null)
+    try {
+      setInfo(await invoke<UpdateInfo>('check_app_update'))
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const download = async () => {
+    if (!info?.url) return
+    setDownloading(true)
+    setStatus(null)
+    try {
+      await invoke('download_app_update', { url: info.url })
+      setStatus('Atualização baixada - o CClinear vai fechar e reabrir com a nova versão em instantes.')
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <SettingGroup title="Atualizações">
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <Download className="w-5 h-5 text-[var(--accent)]" />
+          <div className="flex-1">
+            <div className="text-sm font-medium">Versão instalada: <span className="font-mono">1.3.0</span></div>
+            {info && (
+              <div className="text-xs text-[var(--muted)]">
+                {info.has_update
+                  ? `Nova versão disponível: ${info.latest}`
+                  : `Você está na versão mais recente (${info.latest})`}
+              </div>
+            )}
+            {status && <div className="text-xs text-[var(--muted)] mt-1">{status}</div>}
+          </div>
+          {info?.has_update ? (
+            <button onClick={download} disabled={downloading} className="btn-primary !py-1.5 !text-xs flex items-center gap-1.5">
+              {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Baixar e reiniciar
+            </button>
+          ) : (
+            <button onClick={check} disabled={checking} className="btn-secondary !py-1.5 !text-xs flex items-center gap-1.5">
+              {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              Verificar atualizações
+            </button>
+          )}
+        </div>
+      </div>
+    </SettingGroup>
   )
 }
