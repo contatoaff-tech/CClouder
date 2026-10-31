@@ -4,7 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace CClinear;
+namespace CClouder;
 
 // ======================================================================
 // Tools (v1.2): Duplicatas, Shredder, Menu de contexto, Tasks agendadas,
@@ -20,7 +20,7 @@ public static partial class Backend
 
     static string ExclusionsFile =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "CClinear", "exclusions.json");
+            "CClouder", "exclusions.json");
 
     public static List<string> GetExclusions()
     {
@@ -32,6 +32,17 @@ public static partial class Backend
         if (_exclusionsLoaded) return;
         try
         {
+            // migração do nome antigo (CClinear) para CClouder, sem perder exclusões
+            if (!File.Exists(ExclusionsFile))
+            {
+                string legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "CClinear", "exclusions.json");
+                if (File.Exists(legacy))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(ExclusionsFile)!);
+                    File.Copy(legacy, ExclusionsFile, overwrite: false);
+                }
+            }
             if (File.Exists(ExclusionsFile))
             {
                 var arr = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(ExclusionsFile));

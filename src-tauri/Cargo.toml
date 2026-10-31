@@ -1,5 +1,5 @@
 [package]
-name = "cc-linear"
+name = "cclouder"
 version = "1.0.0"
 description = "CCleaner-like system cleaner - open source, lightweight, fluid UI"
 edition = "2021"

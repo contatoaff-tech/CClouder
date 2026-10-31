@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace CClinear;
+namespace CClouder;
 
 public partial class App : Application
 {

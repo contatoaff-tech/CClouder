@@ -26,7 +26,7 @@ export default function SettingsTab() {
     <div className="space-y-6 anim-fade-in">
       <div>
         <h2 className="text-2xl font-bold text-[var(--fg)]">Configurações</h2>
-        <p className="text-[var(--muted)]">Personalize o comportamento do CClinear</p>
+        <p className="text-[var(--muted)]">Personalize o comportamento do CClouder</p>
       </div>
 
       <div className="flex gap-6">
@@ -51,7 +51,7 @@ export default function SettingsTab() {
               <SettingGroup title="Inicialização">
                 <SettingItem
                   label="Iniciar minimizado na bandeja"
-                  description="Inicia o CClinear minimizado na área de notificação"
+                  description="Inicia o CClouder minimizado na área de notificação"
                 >
                   <Toggle checked={startMinimized} onChange={setStartMinimized} />
                 </SettingItem>
@@ -207,18 +207,18 @@ export default function SettingsTab() {
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--accent)] to-blue-600 flex items-center justify-center mx-auto mb-4">
                   <Zap className="w-10 h-10 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-[var(--fg)] mb-1">CClinear</h3>
-                <p className="text-[var(--muted)] mb-4">Versão 1.3.0</p>
+                <h3 className="text-xl font-bold text-[var(--fg)] mb-1">CClouder</h3>
+                <p className="text-[var(--muted)] mb-4">Versão 1.4.0</p>
                 <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-6">
                   Limpador de sistema open source, leve e moderno. Construído do zero com
                   C#/.NET 10 + WebView2 (shell nativo) e React + Tailwind (interface).
                 </p>
                 <div className="flex justify-center gap-3">
-                  <a href="https://github.com/contatoaff-tech/CClinear" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
+                  <a href="https://github.com/contatoaff-tech/CClouder" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
                     <Github className="w-4 h-4" />
                     GitHub
                   </a>
-                  <a href="https://github.com/contatoaff-tech/CClinear/releases/latest" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
+                  <a href="https://github.com/contatoaff-tech/CClouder/releases/latest" target="_blank" rel="noopener noreferrer" className="btn-secondary flex items-center gap-2">
                     <ExternalLink className="w-4 h-4" />
                     Releases
                   </a>
@@ -230,7 +230,7 @@ export default function SettingsTab() {
               <SettingGroup title="Licença">
                 <div className="card p-4">
                   <p className="text-sm text-[var(--muted)]">
-                    CClinear é licenciado sob a licença MIT. Código fonte disponível no GitHub.
+                    CClouder é licenciado sob a licença MIT. Código fonte disponível no GitHub.
                   </p>
                 </div>
               </SettingGroup>
@@ -440,7 +440,7 @@ function AppUpdateCard() {
     setStatus(null)
     try {
       await invoke('download_app_update', { url: info.url })
-      setStatus('Atualização baixada - o CClinear vai fechar e reabrir com a nova versão em instantes.')
+      setStatus('Atualização baixada - o CClouder vai fechar e reabrir com a nova versão em instantes.')
     } catch (e) {
       setStatus(String(e))
     } finally {
@@ -454,7 +454,7 @@ function AppUpdateCard() {
         <div className="flex items-center gap-3">
           <Download className="w-5 h-5 text-[var(--accent)]" />
           <div className="flex-1">
-            <div className="text-sm font-medium">Versão instalada: <span className="font-mono">1.3.0</span></div>
+            <div className="text-sm font-medium">Versão instalada: <span className="font-mono">1.4.0</span></div>
             {info && (
               <div className="text-xs text-[var(--muted)]">
                 {info.has_update

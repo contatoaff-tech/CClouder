@@ -1,4 +1,4 @@
-# CClinear
+# CClouder
 
 Limpador de sistema para Windows — **open source (MIT), leve (exe único de 2,5 MB), sem telemetria, sem upsell, todas as funções liberadas.**
 
@@ -9,7 +9,7 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 | Aba | O que faz |
 |---|---|
 | **Limpeza** | Temp, prefetch, logs, relatórios de erro, caches de navegadores (Edge/Chrome/Firefox/Brave/Opera) e apps (Spotify, Discord, Steam, VS Code, Teams, Adobe, NVIDIA) · **Health Check (v1.2)**: score de saúde com "Corrigir tudo" · **exclusões globais** (v1.2): pastas/padrões ignorados em todas as análises e limpezas |
-| **Registro** | Desinstaladores órfãos, SharedDLLs, COM/ActiveX, extensões inválidas, MRUs, fontes, App Paths — **backup JSON automático com árvore completa** em `%USERPROFILE%\CClinearBackups` e **restauração pela aba** (v1.3) |
+| **Registro** | Desinstaladores órfãos, SharedDLLs, COM/ActiveX, extensões inválidas, MRUs, fontes, App Paths — **backup JSON automático com árvore completa** em `%USERPROFILE%\CClouderBackups` e **restauração pela aba** (v1.3) |
 | **Ferramentas** | Acesso rápido ao cleanmgr e pastas de sistema · **gerenciador de menu de contexto** (v1.2): habilita/desabilita extensões do botão direito de forma reversível |
 | **Inicialização** | Gerenciador de programas de inicialização (Run/RunOnce HKCU+HKLM+WOW6432Node, pastas Startup) + **tarefas agendadas de logon/boot** (v1.2) — desabilitar é reversível |
 | **Desinstalar** | Lista programas instalados e executa o desinstalador · **Atualizações de software via winget** (v1.3): lista apps desatualizados e atualiza com um clique |
@@ -23,7 +23,7 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 ```
 ┌───────────────────────────── Windows ─────────────────────────────┐
 │                                                                   │
-│  CClinear.exe (2,5 MB, arquivo único)                             │
+│  CClouder.exe (2,5 MB, arquivo único)                             │
 │  ┌────────────────────────────┬────────────────────────────────┐  │
 │  │  UI  (React + Tailwind)    │  Nativo  (C# / .NET 10 + WPF)  │  │
 │  │  7 abas, 12 componentes    │  WebView2 host + Backend.cs    │  │
@@ -49,8 +49,8 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 |---|---|
 | `get_categories` | Devolve o catálogo de limpeza (5 categorias, 30 itens) |
 | `start_scan` | Mede tamanho/quantidade de cada item (dirs, globs, arquivos) em thread separada, emitindo progresso; Registro é auditado de verdade (SharedDLLs apontando p/ arquivo inexistente, desinstaladores órfãos, CLSID sem servidor, extensões sem ProgID, fontes ausentes, App Paths quebrados, MRUs) |
-| `clean_selected` | Deleta arquivos/pastas (falha silenciosa em arquivos em uso) e **exporta backup JSON para `%USERPROFILE%\CClinearBackups` antes de apagar qualquer valor/chave de registro** |
-| `get_startup_items` / `toggle_startup_item` | Lê Run/RunOnce (HKCU, HKLM, WOW6432Node) + pastas Startup; **desabilitar nunca destrói**: o valor migra para `HKCU\Software\CClinear\StartupDisabled` e pode ser restaurado |
+| `clean_selected` | Deleta arquivos/pastas (falha silenciosa em arquivos em uso) e **exporta backup JSON para `%USERPROFILE%\CClouderBackups` antes de apagar qualquer valor/chave de registro** |
+| `get_startup_items` / `toggle_startup_item` | Lê Run/RunOnce (HKCU, HKLM, WOW6432Node) + pastas Startup; **desabilitar nunca destrói**: o valor migra para `HKCU\Software\CClouder\StartupDisabled` e pode ser restaurado |
 | `get_installed_programs` / `uninstall_program` | Enumera as 3 chaves Uninstall e executa o `UninstallString` |
 | `analyze_disk` | Tamanho recursivo **paralelo** (`Parallel.ForEach`) das pastas do caminho |
 
@@ -60,12 +60,12 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 
 ## Auto-update (v1.3)
 
-A aba **Configurações → Sobre** consulta `api.github.com/repos/contatoaff-tech/CClinear/releases/latest`, compara com a versão instalada e, se houver versão nova, baixa o exe da release e se substitui em tempo de execução (script de troca aguarda o processo sair e reabre).
+A aba **Configurações → Sobre** consulta `api.github.com/repos/contatoaff-tech/CClouder/releases/latest`, compara com a versão instalada e, se houver versão nova, baixa o exe da release e se substitui em tempo de execução (script de troca aguarda o processo sair e reabre).
 
 ## Estrutura
 
 ```
-CClinear/
+CClouder/
 ├── src/               # Frontend React + TypeScript + Tailwind (7 abas, 12 componentes)
 ├── src-tauri/         # (opcional) configuração Tauri original
 ├── shell/             # Shell nativo WPF + WebView2 (C#/.NET 10)
@@ -85,11 +85,11 @@ npm install && npm run build
 cd shell
 dotnet publish -c Release -r win-x64 --self-contained false \
   -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true
-# resultado: bin/Release/net10.0-windows/win-x64/publish/CClinear.exe
+# resultado: bin/Release/net10.0-windows/win-x64/publish/CClouder.exe
 ```
 
 Requisitos: .NET 10 Desktop Runtime + WebView2 Runtime (ambos já presentes no Windows 11 atualizado).
 
 ## Nota
 
-O CClinear é um programa **original e independente** — não contém código do CCleaner/Piriform/Avast. As funções de limpeza de sistema (temp, cache, registro, inicialização, desinstalação) são operações genéricas do Windows implementadas do zero.
+O CClouder é um programa **original e independente** — não contém código do CCleaner/Piriform/Avast. As funções de limpeza de sistema (temp, cache, registro, inicialização, desinstalação) são operações genéricas do Windows implementadas do zero.

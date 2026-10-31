@@ -85,7 +85,7 @@ export default function RegistryTab({
           <AlertCircle className="w-5 h-5 text-[var(--warning)] flex-shrink-0 mt-0.5" />
           <div className="text-sm text-[var(--fg)]">
             <p className="font-medium text-[var(--warning)] mb-1">Atenção: Limpeza de Registro</p>
-            <p>O CClinear detecta entradas órfãs e inválidas, mas <strong>não remove automaticamente</strong> por segurança. Use esta aba para:</p>
+            <p>O CClouder detecta entradas órfãs e inválidas, mas <strong>não remove automaticamente</strong> por segurança. Use esta aba para:</p>
             <ul className="list-disc list-inside mt-2 space-y-1">
               <li>Identificar chaves problemáticas</li>
               <li>Exportar lista para revisão manual</li>

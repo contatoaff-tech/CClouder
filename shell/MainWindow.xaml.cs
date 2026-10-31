@@ -6,7 +6,7 @@ using Microsoft.Web.WebView2.Core;
 using System.Windows;
 using System.Windows.Interop;
 
-namespace CClinear;
+namespace CClouder;
 
 public partial class MainWindow : Window
 {

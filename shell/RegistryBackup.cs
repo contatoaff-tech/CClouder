@@ -2,7 +2,7 @@ using Microsoft.Win32;
 using System.IO;
 using System.Text.Json;
 
-namespace CClinear;
+namespace CClouder;
 
 // ======================================================================
 // Registry Backup restore (v1.3): exportação de árvore completa e
@@ -83,9 +83,20 @@ public static partial class Backend
 
     public static List<object> ListRegistryBackups()
     {
-        string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), BackupDirName);
-        if (!Directory.Exists(dir)) return new List<object>();
-        return Directory.GetFiles(dir, "backup-*.json")
+        var dirs = new List<string>
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), BackupDirName),
+            // pasta do nome antigo (CClinear) — mantida para restaurar backups históricos
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "CClinearBackups"),
+        };
+        var files = new List<string>();
+        foreach (var dir in dirs.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Directory.Exists(dir)) continue;
+            try { files.AddRange(Directory.GetFiles(dir, "backup-*.json")); } catch { }
+        }
+        return files
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(f => f)
             .Take(100)
             .Select(f =>

@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace CClinear;
+namespace CClouder;
 
 // ======================================================================
 // Updates (v1.3): Software Updater (winget), Processos + otimizador de
-// memória e Auto-update do próprio CClinear via GitHub Releases.
+// memória e Auto-update do próprio CClouder via GitHub Releases.
 // ======================================================================
 public static partial class Backend
 {
@@ -178,12 +178,12 @@ public static partial class Backend
 
     // ============================ AUTO-UPDATE ============================
 
-    const string RepoLatest = "https://api.github.com/repos/contatoaff-tech/CClinear/releases/latest";
+    const string RepoLatest = "https://api.github.com/repos/contatoaff-tech/CClouder/releases/latest";
 
     static HttpClient NewGithubClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        http.DefaultRequestHeaders.Add("User-Agent", "CClinear-Updater");
+        http.DefaultRequestHeaders.Add("User-Agent", "CClouder-Updater");
         http.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
         return http;
     }
@@ -205,7 +205,7 @@ public static partial class Backend
             foreach (var a in assets.EnumerateArray())
             {
                 string an = a.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                if (an.Equals("CClinear.exe", StringComparison.OrdinalIgnoreCase))
+                if (an.Equals("CClouder.exe", StringComparison.OrdinalIgnoreCase))
                 {
                     url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
                     size = a.TryGetProperty("size", out var s) ? s.GetInt64() : 0;
@@ -226,7 +226,7 @@ public static partial class Backend
         if (!currentExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             throw new Exception("a auto-atualização só funciona no exe publicado");
 
-        string temp = Path.Combine(Path.GetTempPath(), "CClinear-update.exe");
+        string temp = Path.Combine(Path.GetTempPath(), "CClouder-update.exe");
         using (var http = NewGithubClient())
         {
             byte[] bytes = http.GetByteArrayAsync(url).GetAwaiter().GetResult();

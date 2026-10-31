@@ -72,7 +72,7 @@ export default function Sidebar({
             <Zap className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[var(--fg)]">CClinear</h1>
+            <h1 className="text-xl font-bold text-[var(--fg)]">CClouder</h1>
             <p className="text-xs text-[var(--muted)]">Open Source Cleaner</p>
           </div>
         </div>
@@ -165,7 +165,7 @@ export default function Sidebar({
 
       <div className="p-3 border-t border-[var(--border)]">
         <div className="text-xs text-[var(--muted)] text-center">
-          CClinear v1.3.0 — MIT License
+          CClouder v1.4.0 — MIT License
         </div>
       </div>
     </aside>

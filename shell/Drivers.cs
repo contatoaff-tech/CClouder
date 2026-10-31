@@ -5,7 +5,7 @@ using System.IO;
 using System.Management;
 using System.Text.Json;
 
-namespace CClinear;
+namespace CClouder;
 
 // ======================================================================
 // Drivers (v1.1): scan via WMI, busca na web, backup via pnputil,
@@ -105,7 +105,7 @@ public static partial class Backend
             throw new Exception("a criação de ponto de restauração exige execução como administrador");
         var psi = new ProcessStartInfo("powershell.exe",
             "-NoProfile -ExecutionPolicy Bypass -Command " +
-            "\"Checkpoint-Computer -Description 'CClinear (antes de atualizar drivers)' -RestorePointType MODIFY_SETTINGS\"")
+            "\"Checkpoint-Computer -Description 'CClouder (antes de atualizar drivers)' -RestorePointType MODIFY_SETTINGS\"")
         {
             CreateNoWindow = true,
             UseShellExecute = false,

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 
-namespace CClinear;
+namespace CClouder;
 
 public static partial class Backend
 {
@@ -16,8 +16,8 @@ public static partial class Backend
     const string FontsPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts";
     const string AppPathsPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths";
     const string RunMruPath = @"Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU";
-    const string StorePath = @"Software\CClinear\StartupDisabled";
-    const string BackupDirName = "CClinearBackups";
+    const string StorePath = @"Software\CClouder\StartupDisabled";
+    const string BackupDirName = "CClouderBackups";
 
     readonly record struct RegBase(RegistryKey Hive, string Label, string Path);
 
@@ -716,8 +716,32 @@ public static partial class Backend
 
     sealed record StartupEntry(string Name, string Path, bool Enabled, string Location);
 
+    // migração: valores desabilitados viviam em HKCU\Software\CClinear antes do rename
+    static bool _storeMigrated;
+
+    static void EnsureStoreMigration()
+    {
+        if (_storeMigrated) return;
+        _storeMigrated = true;
+        try
+        {
+            using var neu = Registry.CurrentUser.OpenSubKey(StorePath);
+            if (neu != null) return;
+            using var old = Registry.CurrentUser.OpenSubKey(@"Software\CClinear\StartupDisabled");
+            if (old == null) return;
+            using var created = Registry.CurrentUser.CreateSubKey(StorePath);
+            if (created == null) return;
+            foreach (var name in old.GetValueNames())
+            {
+                try { created.SetValue(name, old.GetValue(name) as string ?? ""); } catch { }
+            }
+        }
+        catch { }
+    }
+
     static List<StartupEntry> CollectStartupItems()
     {
+        EnsureStoreMigration();
         var entries = new List<StartupEntry>();
         using var store = SafeOpen(Registry.CurrentUser, StorePath);
         var storeNames = store == null
@@ -778,6 +802,7 @@ public static partial class Backend
 
     public static object ToggleStartupItem(string path, bool enable)
     {
+        EnsureStoreMigration();
         if (enable)
         {
             using var store = OpenWritable(Registry.CurrentUser, StorePath)
