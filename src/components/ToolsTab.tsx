@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react'
-import { Wrench, Terminal, Shield, Download, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Cpu, MemoryStick, Monitor, HardDrive, Network, Settings, Zap, Sparkles, Database, Rocket, Trash2, MousePointerClick } from 'lucide-react'
+import { Wrench, Terminal, Shield, Download, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Cpu, MemoryStick, Monitor, HardDrive, Network, Settings, Zap, Sparkles, Database, Rocket, Trash2, MousePointerClick, Loader2 } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 
 interface Tool {
@@ -205,6 +205,8 @@ export default function ToolsTab() {
       )}
 
       <ContextMenuManager />
+
+      <DevCleanerCard />
     </div>
   )
 }
@@ -322,6 +324,108 @@ function ContextMenuManager() {
         </div>
       )}
       <p className="text-xs text-[var(--muted)]">desabilitar é reversível (prefixo “-” no CLSID, com backup automático)</p>
+    </div>
+  )
+}
+
+// ==================== Dev Cleaner (v1.5) ====================
+
+interface DevCache {
+  id: string
+  name: string
+  path: string
+  size: number
+  count: number
+  kind: string
+  detail?: string
+}
+
+function fmtSize(n: number): string {
+  if (n < 1024) return `${n} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let v = n / 1024, i = 0
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+  return `${v.toFixed(1)} ${units[i]}`
+}
+
+function DevCleanerCard() {
+  const [items, setItems] = useState<DevCache[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await invoke<{ items: DevCache[]; total: number }>('scan_dev_caches')
+      setItems(r.items)
+      setTotal(Number(r.total))
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const clean = async (c: DevCache) => {
+    if (!confirm(`Limpar ${c.name} (${fmtSize(Number(c.size))})? Os caches serão recriados pelas ferramentas.`)) return
+    setBusy(c.id)
+    setStatus(null)
+    try {
+      const r = await invoke<{ ok: boolean; freed_bytes: number; count: number; output?: string }>('clean_dev_cache', { id: c.id })
+      setStatus(`${c.name}: ${fmtSize(Number(r.freed_bytes))} liberados${r.output ? ` · ${r.output.slice(0, 90)}` : ''}`)
+      await load()
+    } catch (e) {
+      setStatus(String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="flex items-center gap-3">
+        <HardDrive className="w-5 h-5 text-[var(--accent)]" />
+        <h3 className="font-semibold">Dev Cleaner</h3>
+        <span className="text-xs text-[var(--muted)]">caches de npm, pip, NuGet, Cargo, Gradle, Yarn, pnpm, Go, VS Code e Docker</span>
+        <div className="flex-1" />
+        {total > 0 && <span className="text-sm text-[var(--accent)] font-medium">{fmtSize(total)}</span>}
+        <button onClick={load} disabled={loading} className="btn-ghost !p-2" title="Atualizar">
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+      {status && <p className="text-xs text-[var(--muted)]">{status}</p>}
+      {loading ? (
+        <p className="text-sm text-[var(--muted)] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> medindo caches…</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-[var(--muted)]">Nenhum cache de desenvolvimento encontrado.</p>
+      ) : (
+        <div className="space-y-1.5 max-h-80 overflow-y-auto scrollbar-thin">
+          {items.map(c => (
+            <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)]">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm">{c.name}</div>
+                <div className="text-xs text-[var(--muted)] font-mono truncate" title={c.path}>{c.path}</div>
+                {c.detail && <div className="text-xs text-[var(--muted)] font-mono whitespace-pre-line">{c.detail}</div>}
+              </div>
+              <span className="text-xs text-[var(--muted)] font-mono shrink-0">
+                {c.kind === 'docker' ? 'via CLI' : fmtSize(Number(c.size))}
+              </span>
+              <button
+                onClick={() => clean(c)}
+                disabled={busy !== null}
+                className="btn-secondary !py-1 !text-xs flex items-center gap-1"
+              >
+                {busy === c.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                Limpar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

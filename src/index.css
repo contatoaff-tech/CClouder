@@ -141,3 +141,18 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+/* ===== Tema claro (v1.5) ===== */
+[data-theme="light"] {
+  --bg: #f6f8fb;
+  --fg: #1b2331;
+  --muted: #5d6b7f;
+  --accent: #1f7ae0;
+  --accent-hover: #1668c4;
+  --border: #d6dee9;
+  --card: #ffffff;
+  --card-hover: #eef3f9;
+  --sidebar: #f6f8fb;
+  --success: #1f9d55;
+  --warning: #b7791f;
+  --danger: #d83a3a;
+}

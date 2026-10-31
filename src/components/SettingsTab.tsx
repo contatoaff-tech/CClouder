@@ -13,6 +13,38 @@ export default function SettingsTab() {
   const [checkUpdates, setCheckUpdates] = useState(true)
   const [minimizeToTray, setMinimizeToTray] = useState(false)
   const [startMinimized, setStartMinimized] = useState(false)
+  const [startWithWindows, setStartWithWindows] = useState(false)
+  const [scheduleEnabled, setScheduleEnabled] = useState(false)
+  const [scheduleFreq, setScheduleFreq] = useState('daily')
+  const [scheduleTime, setScheduleTime] = useState('10:00')
+  const [scheduleInfo, setScheduleInfo] = useState<{ exists: boolean; next_run: string } | null>(null)
+  const [scheduleStatus, setScheduleStatus] = useState<string | null>(null)
+
+  const saveSetting = useCallback((key: string, value: unknown) => {
+    invoke('save_setting', { key, value }).catch(() => { })
+  }, [])
+
+  const applyTheme = (t: string) => {
+    if (t === 'system') delete document.documentElement.dataset.theme
+    else document.documentElement.dataset.theme = t
+  }
+
+  useEffect(() => {
+    invoke<Record<string, unknown>>('get_settings').then(s => {
+      if (typeof s.theme === 'string') { setTheme(s.theme as any); applyTheme(s.theme) }
+      if (typeof s.auto_scan === 'boolean') setAutoScan(s.auto_scan)
+      if (typeof s.confirm_delete === 'boolean') setConfirmDelete(s.confirm_delete)
+      if (typeof s.skip_system_files === 'boolean') setSkipSystemFiles(s.skip_system_files)
+      if (typeof s.restore_point_before_clean === 'boolean') setCreateRestorePoint(s.restore_point_before_clean)
+      if (typeof s.minimize_to_tray === 'boolean') setMinimizeToTray(s.minimize_to_tray)
+      if (typeof s.start_minimized === 'boolean') setStartMinimized(s.start_minimized)
+      if (typeof s.start_with_windows === 'boolean') setStartWithWindows(s.start_with_windows)
+      if (typeof s.schedule_enabled === 'boolean') setScheduleEnabled(s.schedule_enabled)
+      if (typeof s.schedule_frequency === 'string') setScheduleFreq(s.schedule_frequency)
+      if (typeof s.schedule_time === 'string') setScheduleTime(s.schedule_time)
+    }).catch(() => { })
+    invoke<{ exists: boolean; next_run: string }>('get_schedule').then(setScheduleInfo).catch(() => { })
+  }, [])
 
   const sections = [
     { id: 'general', label: 'Geral', icon: <Settings className="w-5 h-5" /> },
@@ -50,16 +82,33 @@ export default function SettingsTab() {
             <SettingsSection title="Geral" icon={<Settings className="w-5 h-5" />}>
               <SettingGroup title="Inicialização">
                 <SettingItem
+                  label="Iniciar com o Windows"
+                  description="Adiciona o CClouder à inicialização automática do Windows"
+                >
+                  <Toggle
+                    checked={startWithWindows}
+                    onChange={async (v) => {
+                      try {
+                        await invoke('set_start_with_windows', { enable: v })
+                        setStartWithWindows(v)
+                        saveSetting('start_with_windows', v)
+                      } catch (e) {
+                        alert(String(e))
+                      }
+                    }}
+                  />
+                </SettingItem>
+                <SettingItem
                   label="Iniciar minimizado na bandeja"
                   description="Inicia o CClouder minimizado na área de notificação"
                 >
-                  <Toggle checked={startMinimized} onChange={setStartMinimized} />
+                  <Toggle checked={startMinimized} onChange={(v) => { setStartMinimized(v); saveSetting('start_minimized', v) }} />
                 </SettingItem>
                 <SettingItem
                   label="Minimizar para a bandeja"
                   description="Ao fechar a janela, minimiza para a bandeja em vez de sair"
                 >
-                  <Toggle checked={minimizeToTray} onChange={setMinimizeToTray} />
+                  <Toggle checked={minimizeToTray} onChange={(v) => { setMinimizeToTray(v); saveSetting('minimize_to_tray', v) }} />
                 </SettingItem>
               </SettingGroup>
 
@@ -68,13 +117,13 @@ export default function SettingsTab() {
                   label="Verificar atualizações automaticamente"
                   description="Verifica por novas versões na inicialização"
                 >
-                  <Toggle checked={checkUpdates} onChange={setCheckUpdates} />
+                  <Toggle checked={checkUpdates} onChange={(v) => { setCheckUpdates(v); saveSetting('check_updates', v) }} />
                 </SettingItem>
                 <SettingItem
                   label="Idioma"
                   description="Idioma da interface"
                 >
-                  <select value={language} onChange={e => setLanguage(e.target.value)} className="input w-auto">
+                  <select value={language} onChange={e => { setLanguage(e.target.value); saveSetting('language', e.target.value) }} className="input w-auto">
                     <option value="pt-BR">Português (Brasil)</option>
                     <option value="en-US">English (US)</option>
                     <option value="es-ES">Español</option>
@@ -95,7 +144,7 @@ export default function SettingsTab() {
                     {(['system', 'light', 'dark'] as const).map(t => (
                       <button
                         key={t}
-                        onClick={() => setTheme(t)}
+                        onClick={() => { setTheme(t); applyTheme(t); saveSetting('theme', t) }}
                         className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
                           theme === t
                             ? 'bg-[var(--accent)] text-white'
@@ -121,19 +170,19 @@ export default function SettingsTab() {
                   label="Pular arquivos de sistema"
                   description="Não tenta remover arquivos protegidos do Windows"
                 >
-                  <Toggle checked={skipSystemFiles} onChange={setSkipSystemFiles} />
+                  <Toggle checked={skipSystemFiles} onChange={(v) => { setSkipSystemFiles(v); saveSetting('skip_system_files', v) }} />
                 </SettingItem>
                 <SettingItem
                   label="Confirmar antes de excluir"
                   description="Pede confirmação antes de cada operação de limpeza"
                 >
-                  <Toggle checked={confirmDelete} onChange={setConfirmDelete} />
+                  <Toggle checked={confirmDelete} onChange={(v) => { setConfirmDelete(v); saveSetting('confirm_delete', v) }} />
                 </SettingItem>
                 <SettingItem
                   label="Criar ponto de restauração"
                   description="Cria um ponto de restauração do Windows antes da limpeza (recomendado)"
                 >
-                  <Toggle checked={createRestorePoint} onChange={setCreateRestorePoint} />
+                  <Toggle checked={createRestorePoint} onChange={(v) => { setCreateRestorePoint(v); saveSetting('restore_point_before_clean', v) }} />
                 </SettingItem>
               </SettingGroup>
 
@@ -142,8 +191,71 @@ export default function SettingsTab() {
                   label="Escaneamento automático na inicialização"
                   description="Executa uma análise rápida ao iniciar o aplicativo"
                 >
-                  <Toggle checked={autoScan} onChange={setAutoScan} />
+                  <Toggle checked={autoScan} onChange={(v) => { setAutoScan(v); saveSetting('auto_scan', v) }} />
                 </SettingItem>
+              </SettingGroup>
+
+              <SettingGroup title="Limpeza agendada">
+                <SettingItem
+                  label="Ativar agendamento"
+                  description="Cria uma tarefa no Agendador do Windows (roda o exe com --clean --quiet)"
+                >
+                  <Toggle
+                    checked={scheduleEnabled}
+                    onChange={async (v) => {
+                      setScheduleEnabled(v)
+                      try {
+                        const r = await invoke<{ ok: boolean }>('set_schedule', { enabled: v, frequency: scheduleFreq, time: scheduleTime })
+                        setScheduleStatus(v ? 'tarefa criada' : 'agendamento removido')
+                        saveSetting('schedule_enabled', v)
+                        const info = await invoke<{ exists: boolean; next_run: string }>('get_schedule')
+                        setScheduleInfo(info)
+                        void r
+                      } catch (e) {
+                        setScheduleStatus(String(e))
+                        setScheduleEnabled(!v)
+                      }
+                    }}
+                  />
+                </SettingItem>
+                <SettingItem label="Frequência" description="Com que frequência a limpeza roda">
+                  <select
+                    value={scheduleFreq}
+                    onChange={e => { setScheduleFreq(e.target.value); saveSetting('schedule_frequency', e.target.value) }}
+                    className="input w-auto"
+                  >
+                    <option value="daily">Diário</option>
+                    <option value="weekly">Semanal</option>
+                  </select>
+                </SettingItem>
+                <SettingItem label="Horário" description="Formato HH:mm (24h)">
+                  <input
+                    value={scheduleTime}
+                    onChange={e => { setScheduleTime(e.target.value); saveSetting('schedule_time', e.target.value) }}
+                    className="input w-24 font-mono text-sm"
+                  />
+                </SettingItem>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await invoke('set_schedule', { enabled: true, frequency: scheduleFreq, time: scheduleTime })
+                        setScheduleStatus('agendamento aplicado')
+                        setScheduleEnabled(true)
+                        setScheduleInfo(await invoke<{ exists: boolean; next_run: string }>('get_schedule'))
+                      } catch (e) {
+                        setScheduleStatus(String(e))
+                      }
+                    }}
+                    className="btn-primary !py-1.5 !text-sm"
+                  >
+                    Aplicar agendamento
+                  </button>
+                  <span className="text-xs text-[var(--muted)]">
+                    {scheduleInfo?.exists ? `próxima execução: ${scheduleInfo.next_run || '—'}` : 'sem tarefa criada'}
+                    {scheduleStatus ? ` · ${scheduleStatus}` : ''}
+                  </span>
+                </div>
               </SettingGroup>
 
               <SettingGroup title="Exclusões">
@@ -208,7 +320,7 @@ export default function SettingsTab() {
                   <Zap className="w-10 h-10 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-[var(--fg)] mb-1">CClouder</h3>
-                <p className="text-[var(--muted)] mb-4">Versão 1.4.0</p>
+                <p className="text-[var(--muted)] mb-4">Versão 1.5.0</p>
                 <p className="text-sm text-[var(--muted)] max-w-md mx-auto mb-6">
                   Limpador de sistema open source, leve e moderno. Construído do zero com
                   C#/.NET 10 + WebView2 (shell nativo) e React + Tailwind (interface).
@@ -454,7 +566,7 @@ function AppUpdateCard() {
         <div className="flex items-center gap-3">
           <Download className="w-5 h-5 text-[var(--accent)]" />
           <div className="flex-1">
-            <div className="text-sm font-medium">Versão instalada: <span className="font-mono">1.4.0</span></div>
+            <div className="text-sm font-medium">Versão instalada: <span className="font-mono">1.5.0</span></div>
             {info && (
               <div className="text-xs text-[var(--muted)]">
                 {info.has_update

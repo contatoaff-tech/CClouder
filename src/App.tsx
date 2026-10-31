@@ -175,6 +175,14 @@ export default function App() {
     }
   }, [loadCategories])
 
+  useEffect(() => {
+    invoke<Record<string, unknown>>('get_settings').then(s => {
+      const t = typeof s.theme === 'string' ? s.theme : 'dark'
+      if (t === 'system') delete document.documentElement.dataset.theme
+      else document.documentElement.dataset.theme = t
+    }).catch(() => { })
+  }, [])
+
   const handleScan = async () => {
     const selected = categories.filter(c => c.checked).map(c => c.id)
     if (selected.length === 0) {

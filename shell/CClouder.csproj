@@ -4,12 +4,14 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CClouder</AssemblyName>
     <RootNamespace>CClouder</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.4.0</Version>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.5.0</Version>
     <Product>CClouder</Product>
     <Description>Limpador de sistema open source, leve e sem telemetria</Description>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

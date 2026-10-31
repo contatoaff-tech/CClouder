@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using System.Windows;
 using System.Windows.Interop;
+using WinForms = System.Windows.Forms;
 
 namespace CClouder;
 
@@ -60,7 +61,89 @@ window.chrome.webview.addEventListener('message', (e) => {
     {
         InitializeComponent();
         SourceInitialized += (s, e) => EnableDarkTitleBar();
-        Loaded += async (_, _) => await InitWebViewAsync();
+        Loaded += async (_, _) =>
+        {
+            InitTray();
+            if (Backend.GetSettingBool("start_minimized", false)) HideToTray();
+            await InitWebViewAsync();
+        };
+    }
+
+    // ---------- bandeja do sistema ----------
+
+    private WinForms.NotifyIcon? _tray;
+    private bool _exiting;
+
+    private void InitTray()
+    {
+        try
+        {
+            string exe = Environment.ProcessPath ?? "";
+            _tray = new WinForms.NotifyIcon
+            {
+                Icon = System.Drawing.Icon.ExtractAssociatedIcon(exe) ?? System.Drawing.SystemIcons.Application,
+                Visible = true,
+                Text = "CClouder — limpeza e manutenção",
+            };
+            var menu = new WinForms.ContextMenuStrip();
+            menu.Items.Add("Abrir CClouder", null, (_, _) => ShowFromTray());
+            menu.Items.Add("Limpeza headless agora", null, (_, _) =>
+            {
+                try
+                {
+                    var exePath = Environment.ProcessPath ?? "";
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exePath, "--clean --quiet")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                    });
+                }
+                catch { }
+            });
+            menu.Items.Add(new WinForms.ToolStripSeparator());
+            menu.Items.Add("Sair", null, (_, _) => { _exiting = true; Close(); });
+            _tray.ContextMenuStrip = menu;
+            _tray.DoubleClick += (_, _) => ShowFromTray();
+        }
+        catch { }
+    }
+
+    private void ShowFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void HideToTray()
+    {
+        Hide();
+        try { _tray?.ShowBalloonTip(2500, "CClouder", "Rodando em segundo plano. Clique no ícone para abrir.", WinForms.ToolTipIcon.Info); }
+        catch { }
+    }
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Minimized && Backend.GetSettingBool("minimize_to_tray", false))
+            HideToTray();
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_exiting && Backend.GetSettingBool("minimize_to_tray", false))
+        {
+            e.Cancel = true;
+            HideToTray();
+            return;
+        }
+        base.OnClosing(e);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); } } catch { }
+        base.OnClosed(e);
     }
 
     private async Task InitWebViewAsync()
@@ -340,6 +423,84 @@ window.chrome.webview.addEventListener('message', (e) => {
                 {
                     string url = payload.GetProperty("url").GetString() ?? "";
                     var result = await Task.Run(() => Backend.DownloadAppUpdate(url));
+                    Reply(req, result);
+                    break;
+                }
+                case "scan_empty_folders":
+                {
+                    string path = payload.GetProperty("path").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.ScanEmptyFolders(path));
+                    Reply(req, result);
+                    break;
+                }
+                case "scan_empty_files":
+                {
+                    string path = payload.GetProperty("path").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.ScanEmptyFiles(path));
+                    Reply(req, result);
+                    break;
+                }
+                case "scan_big_files":
+                {
+                    string path = payload.GetProperty("path").GetString() ?? "";
+                    long min = payload.TryGetProperty("min_size", out var msz) ? msz.GetInt64() : 10485760;
+                    int limit = payload.TryGetProperty("limit", out var lim) ? lim.GetInt32() : 100;
+                    var result = await Task.Run(() => Backend.ScanBigFiles(path, min, limit));
+                    Reply(req, result);
+                    break;
+                }
+                case "scan_similar_images":
+                {
+                    string path = payload.GetProperty("path").GetString() ?? "";
+                    int threshold = payload.TryGetProperty("threshold", out var th) ? th.GetInt32() : 5;
+                    var result = await Task.Run(() => Backend.ScanSimilarImages(path, threshold));
+                    Reply(req, result);
+                    break;
+                }
+                case "scan_dev_caches":
+                {
+                    var result = await Task.Run(() => Backend.ScanDevCaches());
+                    Reply(req, result);
+                    break;
+                }
+                case "clean_dev_cache":
+                {
+                    string id = payload.GetProperty("id").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.CleanDevCache(id));
+                    Reply(req, result);
+                    break;
+                }
+                case "get_settings":
+                    Reply(req, Backend.GetSettings());
+                    break;
+                case "save_settings":
+                {
+                    var settings = payload.GetProperty("settings");
+                    Reply(req, Backend.SaveSettings(settings));
+                    break;
+                }
+                case "save_setting":
+                {
+                    string key = payload.GetProperty("key").GetString() ?? "";
+                    var value = payload.GetProperty("value").Clone();
+                    Reply(req, Backend.SaveSetting(key, value));
+                    break;
+                }
+                case "set_start_with_windows":
+                {
+                    bool enable = payload.GetProperty("enable").GetBoolean();
+                    Reply(req, Backend.SetStartWithWindows(enable));
+                    break;
+                }
+                case "get_schedule":
+                    Reply(req, Backend.GetSchedule());
+                    break;
+                case "set_schedule":
+                {
+                    bool enabled = payload.GetProperty("enabled").GetBoolean();
+                    string freq = payload.TryGetProperty("frequency", out var fq) ? fq.GetString() ?? "daily" : "daily";
+                    string time = payload.TryGetProperty("time", out var tm) ? tm.GetString() ?? "10:00" : "10:00";
+                    var result = await Task.Run(() => Backend.SetSchedule(enabled, freq, time));
                     Reply(req, result);
                     break;
                 }

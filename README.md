@@ -10,11 +10,13 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 |---|---|
 | **Limpeza** | Temp, prefetch, logs, relatórios de erro, caches de navegadores (Edge/Chrome/Firefox/Brave/Opera) e apps (Spotify, Discord, Steam, VS Code, Teams, Adobe, NVIDIA) · **Health Check (v1.2)**: score de saúde com "Corrigir tudo" · **exclusões globais** (v1.2): pastas/padrões ignorados em todas as análises e limpezas |
 | **Registro** | Desinstaladores órfãos, SharedDLLs, COM/ActiveX, extensões inválidas, MRUs, fontes, App Paths — **backup JSON automático com árvore completa** em `%USERPROFILE%\CClouderBackups` e **restauração pela aba** (v1.3) |
-| **Ferramentas** | Acesso rápido ao cleanmgr e pastas de sistema · **gerenciador de menu de contexto** (v1.2): habilita/desabilita extensões do botão direito de forma reversível |
+| **Ferramentas** | Acesso rápido ao cleanmgr e pastas de sistema · **gerenciador de menu de contexto** (v1.2) · **Dev Cleaner** (v1.5): caches de npm, pip, NuGet, Cargo, Gradle, Yarn, pnpm, Go, VS Code e Docker |
 | **Inicialização** | Gerenciador de programas de inicialização (Run/RunOnce HKCU+HKLM+WOW6432Node, pastas Startup) + **tarefas agendadas de logon/boot** (v1.2) — desabilitar é reversível |
 | **Desinstalar** | Lista programas instalados e executa o desinstalador · **Atualizações de software via winget** (v1.3): lista apps desatualizados e atualiza com um clique |
 | **Processos** *(v1.3)* | Monitor de processos (RAM/CPU por processo, top 60), **otimizador de memória** (`EmptyWorkingSet`) e encerrar processo |
-| **Arquivos** *(v1.2)* | **Buscador de Duplicatas** (hash parcial + SHA-256, com pré-seleção inteligente) e **Triturador de Arquivos** (sobrescreve com dados aleatórios, renomeia e apaga — irreversível) |
+| **Arquivos** *(v1.5)* | **Duplicatas** (hash parcial + SHA-256), **Imagens similares** (dHash perceptual), **Pastas vazias**, **Arquivos vazios**, **Maiores arquivos** (top 100) e **Triturador** (sobrescreve, renomeia e apaga) |
+| **Automação** *(v1.5)* | **Limpeza agendada** via Agendador do Windows, **CLI headless** (`CClouder.exe --clean --quiet` com log em `%LOCALAPPDATA%\CClouder\logs`), bandeja do sistema, iniciar com Windows e instância única |
+| **Configurações** *(v1.5)* | Preferências **realmente persistidas** em `%LOCALAPPDATA%\CClouder\settings.json` (tema claro/escuro, exclusões, tray, agendamento) |
 | **Drivers** *(v1.1)* | Escaneia todos os drivers assinados via WMI (Win32_PnPSignedDriver), **busca na web** por atualização de cada driver (abre a busca no navegador), **backup completo dos drivers** via `pnputil /export-driver` e **ponto de restauração** do Windows antes de mexer em qualquer driver — com **verificação de capacidades** em tempo real (admin, pnputil, PowerShell, System Restore) |
 | **Disco** | Análise paralela: 20 maiores pastas por tamanho |
 
