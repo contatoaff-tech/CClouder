@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react'
-import { Wrench, Terminal, Shield, Download, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Cpu, MemoryStick, Monitor, HardDrive, Network, Settings, Zap, Sparkles, Database, Rocket, Trash2, MousePointerClick, Loader2 } from 'lucide-react'
+import { Wrench, Terminal, Shield, Download, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Cpu, MemoryStick, Monitor, HardDrive, Network, Settings, Zap, Sparkles, Database, Rocket, Trash2, MousePointerClick, Loader2, FileX } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 
 interface Tool {
@@ -34,6 +34,22 @@ export default function ToolsTab() {
       category: 'system',
       action: async () => {
         // dfrgui
+      },
+      danger: false
+    },
+    {
+      id: 'ssd_trim',
+      name: 'Otimizar SSD (TRIM)',
+      description: 'Executa ReTrim na unidade de sistema C: para consolidar blocos e restaurar performance de escrita',
+      icon: <Zap className="w-5 h-5" />,
+      category: 'maintenance',
+      action: async () => {
+        try {
+          const res = await invoke<{ ok: boolean; message: string }>('optimize_ssd_trim')
+          alert(res.message || 'Comando TRIM executado!')
+        } catch (e) {
+          alert('Erro ao executar TRIM: ' + e)
+        }
       },
       danger: false
     },
@@ -207,6 +223,8 @@ export default function ToolsTab() {
       <ContextMenuManager />
 
       <DevCleanerCard />
+
+      <BrokenShortcutsCard />
     </div>
   )
 }
@@ -424,6 +442,137 @@ function DevCleanerCard() {
               </button>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ==================== Reparador de Atalhos Quebrados (Advanced SystemCare) ====================
+
+interface BrokenShortcut {
+  path: string
+  name: string
+  target: string
+  folder: string
+}
+
+function BrokenShortcutsCard() {
+  const [shortcuts, setShortcuts] = useState<BrokenShortcut[]>([])
+  const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [status, setStatus] = useState<string | null>(null)
+  const [scannedOnce, setScannedOnce] = useState(false)
+
+  const scan = async () => {
+    setLoading(true)
+    setStatus(null)
+    try {
+      const items = await invoke<BrokenShortcut[]>('scan_broken_shortcuts')
+      setShortcuts(items)
+      setSelected(new Set(items.map(s => s.path)))
+      setScannedOnce(true)
+      setStatus(items.length === 0 ? 'Nenhum atalho quebrado encontrado!' : `${items.length} atalho(s) quebrado(s) detectado(s).`)
+    } catch (e) {
+      setStatus('Erro ao escanear atalhos: ' + e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleSelect = (path: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selected.size === shortcuts.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(shortcuts.map(s => s.path)))
+    }
+  }
+
+  const deleteSelected = async () => {
+    if (selected.size === 0) return
+    if (!confirm(`Excluir ${selected.size} atalho(s) quebrado(s) selecionado(s)?`)) return
+    setDeleting(true)
+    try {
+      const res = await invoke<{ ok: boolean; deleted: number; errors: string[] }>('delete_broken_shortcuts', {
+        paths: Array.from(selected)
+      })
+      setStatus(`${res.deleted} atalho(s) quebrado(s) excluído(s) com sucesso.`)
+      setShortcuts(prev => prev.filter(s => !selected.has(s.path)))
+      setSelected(new Set())
+    } catch (e) {
+      setStatus('Erro ao excluir: ' + e)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="flex items-center gap-3">
+        <FileX className="w-5 h-5 text-[var(--accent)]" />
+        <h3 className="font-semibold">Reparador de Atalhos Inválidos</h3>
+        <span className="text-xs text-[var(--muted)]">Detecta atalhos (.lnk) órfãos no Desktop e Menu Iniciar</span>
+        <div className="flex-1" />
+        <button onClick={scan} disabled={loading} className="btn-secondary !py-1 !text-xs flex items-center gap-1.5">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Escaneando...' : 'Escanear Atalhos'}
+        </button>
+      </div>
+
+      {status && <p className="text-xs text-[var(--muted)]">{status}</p>}
+
+      {scannedOnce && shortcuts.length === 0 && (
+        <p className="text-sm text-[var(--muted)]">Todos os atalhos verificados estão válidos e íntegros.</p>
+      )}
+
+      {scannedOnce && shortcuts.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-[var(--muted)] px-1">
+            <button onClick={toggleAll} className="hover:text-[var(--fg)] underline">
+              {selected.size === shortcuts.length ? 'Desmarcar todos' : 'Selecionar todos'}
+            </button>
+            <button
+              onClick={deleteSelected}
+              disabled={deleting || selected.size === 0}
+              className="btn-danger !py-1 !text-xs flex items-center gap-1.5"
+            >
+              {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              Excluir {selected.size} selecionado(s)
+            </button>
+          </div>
+
+          <div className="space-y-1.5 max-h-60 overflow-y-auto scrollbar-thin">
+            {shortcuts.map(s => (
+              <div
+                key={s.path}
+                onClick={() => toggleSelect(s.path)}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(s.path)}
+                  onChange={() => toggleSelect(s.path)}
+                  className="rounded border-[var(--border)] text-[var(--accent)]"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--fg)]">{s.name}.lnk</div>
+                  <div className="text-xs text-[var(--danger)] truncate font-mono" title={s.target}>
+                    Destino inexistente: {s.target}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

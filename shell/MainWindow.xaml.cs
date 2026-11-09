@@ -148,16 +148,25 @@ window.chrome.webview.addEventListener('message', (e) => {
 
     private async Task InitWebViewAsync()
     {
-        Web.CoreWebView2InitializationCompleted += (_, _) =>
+        try
         {
+            string udata = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "CClouder", "WebView2Data");
+            try { Directory.CreateDirectory(udata); } catch { udata = Path.Combine(Path.GetTempPath(), "CClouder_WebView2"); Directory.CreateDirectory(udata); }
+            var env = await CoreWebView2Environment.CreateAsync(null, udata);
+            await Web.EnsureCoreWebView2Async(env);
             Web.CoreWebView2.WebMessageReceived += OnWebMessage;
-        };
-        await Web.EnsureCoreWebView2Async();
-        await Web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(Shim);
-        string dist = Path.Combine(AppContext.BaseDirectory, "dist");
-        Web.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            "cclinear.app", dist, CoreWebView2HostResourceAccessKind.Allow);
-        Web.CoreWebView2.Navigate("https://cclinear.app/index.html");
+            await Web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(Shim);
+            string dist = Path.Combine(AppContext.BaseDirectory, "dist");
+            Web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                "cclinear.app", dist, CoreWebView2HostResourceAccessKind.Allow);
+            Web.CoreWebView2.Navigate("https://cclinear.app/index.html");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("[WebView] Exception: " + ex);
+        }
     }
 
     // ---------- IPC bridge ----------
@@ -303,6 +312,66 @@ window.chrome.webview.addEventListener('message', (e) => {
                 case "verify_capabilities":
                     Reply(req, Backend.VerifyCapabilities());
                     break;
+                case "get_hardware_issues":
+                {
+                    var result = await Task.Run(() => Backend.GetHardwareIssues());
+                    Reply(req, result);
+                    break;
+                }
+                case "get_game_runtimes":
+                {
+                    var result = await Task.Run(() => Backend.GetGameRuntimes());
+                    Reply(req, result);
+                    break;
+                }
+                case "install_runtime":
+                {
+                    string id = payload.GetProperty("id").GetString() ?? "";
+                    var result = await Task.Run(() => Backend.InstallRuntime(id));
+                    Reply(req, result);
+                    break;
+                }
+                case "fix_hardware_audio":
+                {
+                    var result = await Task.Run(() => Backend.FixHardwareAudio());
+                    Reply(req, result);
+                    break;
+                }
+                case "fix_hardware_network":
+                {
+                    var result = await Task.Run(() => Backend.FixHardwareNetwork());
+                    Reply(req, result);
+                    break;
+                }
+                case "get_turbo_boost_status":
+                    Reply(req, Backend.GetTurboBoostStatus());
+                    break;
+                case "toggle_turbo_boost":
+                {
+                    bool enable = payload.GetProperty("enable").GetBoolean();
+                    var result = await Task.Run(() => Backend.ToggleTurboBoost(enable));
+                    Reply(req, result);
+                    break;
+                }
+                case "scan_broken_shortcuts":
+                {
+                    var result = await Task.Run(() => Backend.ScanBrokenShortcuts());
+                    Reply(req, result);
+                    break;
+                }
+                case "delete_broken_shortcuts":
+                {
+                    var paths = payload.GetProperty("paths").EnumerateArray().Select(x => x.GetString() ?? "").Where(s => s.Length > 0).ToArray();
+                    var result = await Task.Run(() => Backend.DeleteBrokenShortcuts(paths));
+                    Reply(req, result);
+                    break;
+                }
+                case "optimize_ssd_trim":
+                {
+                    var result = await Task.Run(() => Backend.OptimizeSsdTrim());
+                    Reply(req, result);
+                    break;
+                }
                 case "find_duplicates":
                 {
                     string path = payload.GetProperty("path").GetString() ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

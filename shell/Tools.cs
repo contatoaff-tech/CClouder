@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
@@ -587,5 +588,168 @@ public static partial class Backend
         double v = b; int i = 0;
         while (v >= 1024 && i < units.Length - 1) { v /= 1024; i++; }
         return $"{v:0.#} {units[i]}";
+    }
+
+    // ============================ TURBO BOOST (Advanced SystemCare) ============================
+
+    static readonly string[] TurboServices = new[] { "SysMain", "DiagTrack", "WSearch", "MapsBroker" };
+    static readonly ConcurrentDictionary<string, bool> _turboPreviousState = new();
+    static bool _turboBoostActive = false;
+
+    public static object GetTurboBoostStatus()
+    {
+        return new { active = _turboBoostActive, services = TurboServices };
+    }
+
+    public static object ToggleTurboBoost(bool enable)
+    {
+        int modified = 0;
+        if (enable)
+        {
+            _turboPreviousState.Clear();
+            foreach (var svc in TurboServices)
+            {
+                try
+                {
+                    var status = RunPowerShell($"(Get-Service -Name '{svc}' -ErrorAction SilentlyContinue).Status", 5000);
+                    if (status.Contains("Running", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _turboPreviousState[svc] = true;
+                        RunPowerShell($"Stop-Service -Name '{svc}' -Force -ErrorAction SilentlyContinue", 10000);
+                        modified++;
+                    }
+                }
+                catch { }
+            }
+            try { OptimizeMemory(); } catch { }
+            _turboBoostActive = true;
+        }
+        else
+        {
+            foreach (var kvp in _turboPreviousState)
+            {
+                if (kvp.Value)
+                {
+                    try
+                    {
+                        RunPowerShell($"Start-Service -Name '{kvp.Key}' -ErrorAction SilentlyContinue", 10000);
+                        modified++;
+                    }
+                    catch { }
+                }
+            }
+            _turboPreviousState.Clear();
+            _turboBoostActive = false;
+        }
+        return new { ok = true, active = _turboBoostActive, count = modified };
+    }
+
+    // ============================ ATALHOS QUEBRADOS ============================
+
+    public static List<object> ScanBrokenShortcuts()
+    {
+        var list = new List<object>();
+        var folders = new List<string>();
+
+        void AddIfExists(Environment.SpecialFolder f)
+        {
+            try { var p = Environment.GetFolderPath(f); if (Directory.Exists(p)) folders.Add(p); } catch { }
+        }
+
+        AddIfExists(Environment.SpecialFolder.Desktop);
+        AddIfExists(Environment.SpecialFolder.CommonDesktopDirectory);
+        AddIfExists(Environment.SpecialFolder.StartMenu);
+        AddIfExists(Environment.SpecialFolder.CommonStartMenu);
+
+        try
+        {
+            var userPrograms = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Microsoft\Windows\Start Menu\Programs");
+            if (Directory.Exists(userPrograms)) folders.Add(userPrograms);
+            var commonPrograms = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), @"Microsoft\Windows\Start Menu\Programs");
+            if (Directory.Exists(commonPrograms)) folders.Add(commonPrograms);
+        }
+        catch { }
+
+        Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
+        if (shellType == null) return list;
+        dynamic? shell = null;
+        try { shell = Activator.CreateInstance(shellType); } catch { return list; }
+        if (shell == null) return list;
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dir in folders.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(dir, "*.lnk", SearchOption.AllDirectories))
+                {
+                    if (!seen.Add(file)) continue;
+                    try
+                    {
+                        dynamic sc = shell.CreateShortcut(file);
+                        string target = (string)sc.TargetPath;
+                        if (string.IsNullOrWhiteSpace(target)) continue;
+
+                        if (target.StartsWith("::") || target.StartsWith("ms-", StringComparison.OrdinalIgnoreCase)) continue;
+
+                        bool isDir = string.IsNullOrEmpty(Path.GetExtension(target));
+                        bool exists = isDir ? Directory.Exists(target) : File.Exists(target);
+
+                        if (!exists)
+                        {
+                            list.Add(new
+                            {
+                                path = file,
+                                name = Path.GetFileNameWithoutExtension(file),
+                                target,
+                                folder = Path.GetDirectoryName(file) ?? ""
+                            });
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        return list;
+    }
+
+    public static object DeleteBrokenShortcuts(string[] paths)
+    {
+        int deleted = 0;
+        var errors = new List<string>();
+        foreach (var p in paths)
+        {
+            try
+            {
+                if (File.Exists(p) && p.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(p);
+                    deleted++;
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{Path.GetFileName(p)}: {ex.Message}");
+            }
+        }
+        return new { ok = true, deleted, errors };
+    }
+
+    // ============================ SSD TRIM ============================
+
+    public static object OptimizeSsdTrim()
+    {
+        try
+        {
+            string output = RunPowerShell("Optimize-Volume -DriveLetter C -ReTrim -Verbose", 60000);
+            return new { ok = true, message = "Comando TRIM executado com sucesso na unidade C:", output };
+        }
+        catch (Exception ex)
+        {
+            return new { ok = false, message = "Falha ao executar TRIM: " + ex.Message };
+        }
     }
 }

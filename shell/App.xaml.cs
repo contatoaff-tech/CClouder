@@ -10,6 +10,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
+        {
+            try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash.log"), $"[UnhandledException] {ev.ExceptionObject}\n"); } catch { }
+        };
+        DispatcherUnhandledException += (s, ev) =>
+        {
+            try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash.log"), $"[DispatcherException] {ev.Exception}\n"); } catch { }
+        };
+
         bool clean = e.Args.Any(a => a.Equals("--clean", StringComparison.OrdinalIgnoreCase));
         if (clean)
         {
@@ -21,6 +30,7 @@ public partial class App : System.Windows.Application
         _mutex = new Mutex(true, "CClouder.SingleInstance.v1", out bool created);
         if (!created)
         {
+            try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash.log"), "[Startup] Mutex already held by another instance. Exiting.\n"); } catch { }
             Shutdown(0);
             return;
         }
