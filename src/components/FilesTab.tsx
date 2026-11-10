@@ -94,16 +94,16 @@ export default function FilesTab() {
   }
 
   const deleteChecked = async () => {
-    if (checked.size === 0) return
-    if (!confirm(`Excluir ${checked.size} item(ns) permanentemente?`)) return
+    if (checked.size === 0 || deleting) return
+    if (!confirm(`Excluir ${checked.size} item(ns) permanentemente? Pastas e arquivos protegidos/ignorados serão mantidos.`)) return
     setDeleting(true)
     try {
       const r = await invoke<{ deleted: number; freed_bytes: number; errors: string[] }>('delete_files', { paths: [...checked] })
       setStatus({
-        ok: true,
-        msg: `${r.deleted} itens excluídos · ${fmtBytes(r.freed_bytes)} liberados${r.errors.length ? ` · ${r.errors.length} falharam` : ''}`,
+        ok: r.errors.length === 0,
+        msg: `${r.deleted} itens/arquivos excluídos · ${fmtBytes(r.freed_bytes)} liberados${r.errors.length ? ` · ${r.errors.length} ignorados ou falharam: ${r.errors[0]}` : ''}`,
       })
-      setChecked(new Set())
+      if (r.errors.length === 0) setChecked(new Set())
       await analyze()
     } catch (e) {
       setStatus({ ok: false, msg: String(e) })
@@ -132,18 +132,19 @@ export default function FilesTab() {
   }
 
   const shred = async () => {
-    if (!confirm(`Sobrescrever e apagar PERMANENTEMENTE ${shredList.length} item(ns)? Não há como desfazer.`)) return
+    if (shredList.length === 0 || shredding) return
+    if (!confirm(`Sobrescrever e apagar PERMANENTEMENTE ${shredList.length} item(ns)? Em SSDs/armazenamento flash a sobrescrita não garante apagamento físico. Não há como desfazer.`)) return
     setShredding(true)
     setShredStatus(null)
     try {
-      const r = await invoke<ShredResult>('shred_paths', { paths: shredList })
+      const r = await invoke<ShredResult>('shred_paths', { paths: [...shredList] })
       setShredStatus({
         ok: r.errors.length === 0,
         msg: r.errors.length > 0
           ? `${r.shredded} itens triturados (${fmtBytes(r.freed_bytes)}) · ${r.errors.length} falharam: ${r.errors[0]}`
           : `${r.shredded} itens triturados · ${fmtBytes(r.freed_bytes)} liberados`,
       })
-      setShredList([])
+      if (r.errors.length === 0) setShredList([])
     } catch (e) {
       setShredStatus({ ok: false, msg: String(e) })
     } finally {
@@ -374,7 +375,7 @@ export default function FilesTab() {
           <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--danger)]/20 text-[var(--danger)]">Irreversível</span>
         </div>
         <p className="text-sm text-[var(--muted)]">
-          Sobrescreve os bytes com dados aleatórios, renomeia e apaga — impossível recuperar com software de restauração.
+          Sobrescreve e apaga arquivos selecionados. Em SSDs, armazenamento flash e sistemas com snapshots, a sobrescrita não garante apagamento irrecuperável.
         </p>
         <div className="flex gap-2">
           <input
@@ -398,7 +399,7 @@ export default function FilesTab() {
                 >remover</button>
               </div>
             ))}
-            <button onClick={shred} disabled={shredding} className="btn-danger w-full">
+            <button onClick={shred} disabled={shredList.length === 0 || shredding} className="btn-danger w-full">
               {shredding ? <Loader2 className="w-4 h-4 animate-spin inline mr-1" /> : <Flame className="w-4 h-4 inline mr-1" />}
               Triturar {shredList.length} item(ns) permanentemente
             </button>

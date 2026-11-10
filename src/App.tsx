@@ -184,7 +184,9 @@ export default function App() {
   }, [])
 
   const handleScan = async () => {
-    const selected = categories.filter(c => c.checked).map(c => c.id)
+    const selected = activeTab === 'registry'
+      ? categories.filter(c => c.id === 'registry' && c.items.some(i => i.checked)).map(c => c.id)
+      : categories.filter(c => c.id !== 'registry' && c.items.some(i => i.checked)).map(c => c.id)
     if (selected.length === 0) {
       showToast('Selecione pelo menos uma categoria', 'error')
       return
@@ -224,7 +226,11 @@ export default function App() {
       const result = await invoke<CleanResult>('clean_selected', { items })
       setCleanResult(result)
       setShowResultModal(true)
-      showToast(`Limpeza concluída: ${formatNumber(result.freed_count)} arquivos, ${formatBytes(result.freed_bytes)} liberados`, 'success')
+      if (result.errors.length > 0) {
+        showToast(`Limpeza parcial: ${result.errors.length} item(ns) não puderam ser processados`, 'error')
+      } else {
+        showToast(`Limpeza concluída: ${formatNumber(result.freed_count)} arquivos, ${formatBytes(result.freed_bytes)} liberados`, 'success')
+      }
       await handleScan()
     } catch (e) {
       showToast('Erro na limpeza: ' + e, 'error')
@@ -234,32 +240,35 @@ export default function App() {
   }
 
   const handleToggleCategory = (id: string) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, checked: !c.checked } : c))
+    const updateCategory = (c: CleanCategory): CleanCategory => {
+      if (c.id !== id) return c
+      const checked = c.items.some(i => !i.checked)
+      return { ...c, checked, items: c.items.map(i => ({ ...i, checked })) }
+    }
+    setCategories(prev => prev.map(updateCategory))
+    if (scanResult) setScanResult(prev => prev ? { ...prev, categories: prev.categories.map(updateCategory) } : null)
   }
 
   const handleToggleItem = (catId: string, itemId: string) => {
-    setCategories(prev => prev.map(c => c.id === catId ? {
-      ...c, items: c.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
-    } : c))
+    const updateCategory = (c: CleanCategory): CleanCategory => {
+      if (c.id !== catId) return c
+      const items = c.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
+      return { ...c, checked: items.some(i => i.checked), items }
+    }
+    setCategories(prev => prev.map(updateCategory))
     if (scanResult) {
-      setScanResult(prev => prev ? {
-        ...prev, categories: prev.categories.map(c => c.id === catId ? {
-          ...c, items: c.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
-        } : c)
-      } : null)
+      setScanResult(prev => prev ? { ...prev, categories: prev.categories.map(updateCategory) } : null)
     }
   }
 
   const handleSelectAll = (checked: boolean) => {
-    setCategories(prev => prev.map(c => ({
-      ...c, checked, items: c.items.map(i => ({ ...i, checked }))
-    })))
+    const updateCategory = (c: CleanCategory): CleanCategory => {
+      if (c.id === 'registry' && activeTab !== 'registry') return c
+      return { ...c, checked, items: c.items.map(i => ({ ...i, checked })) }
+    }
+    setCategories(prev => prev.map(updateCategory))
     if (scanResult) {
-      setScanResult(prev => prev ? {
-        ...prev, categories: prev.categories.map(c => ({
-          ...c, checked, items: c.items.map(i => ({ ...i, checked }))
-        }))
-      } : null)
+      setScanResult(prev => prev ? { ...prev, categories: prev.categories.map(updateCategory) } : null)
     }
   }
 
@@ -305,15 +314,15 @@ export default function App() {
     }
   }
 
-  const getTotalSelected = () => {
-    const base = scanResult || { categories }
-    return base.categories.flatMap(c => c.items.filter(i => i.checked)).length
-  }
+  const getActiveCategories = () => (scanResult?.categories || categories).filter(c =>
+    activeTab === 'registry' ? c.id === 'registry' : c.id !== 'registry'
+  )
 
-  const getTotalSize = () => {
-    const base = scanResult || { categories }
-    return base.categories.flatMap(c => c.items.filter(i => i.checked)).reduce((a, i) => a + i.size, 0)
-  }
+  const getTotalSelected = () =>
+    getActiveCategories().flatMap(c => c.items.filter(i => i.checked)).length
+
+  const getTotalSize = () =>
+    getActiveCategories().flatMap(c => c.items.filter(i => i.checked)).reduce((a, i) => a + i.size, 0)
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg)]">
@@ -333,7 +342,7 @@ export default function App() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           {activeTab === 'cleaner' && (
             <CleanerTab
-              categories={scanResult?.categories || categories}
+              categories={(scanResult?.categories || categories).filter(c => c.id !== 'registry')}
               onToggleItem={handleToggleItem}
               onSelectAll={handleSelectAll}
               scanning={scanning}
@@ -350,7 +359,7 @@ export default function App() {
           {activeTab === 'processes' && <ProcessesTab />}
           {activeTab === 'registry' && (
             <RegistryTab
-              categories={scanResult?.categories || categories}
+              categories={(scanResult?.categories || categories).filter(c => c.id === 'registry')}
               onToggleItem={handleToggleItem}
               onSelectAll={handleSelectAll}
               scanning={scanning}

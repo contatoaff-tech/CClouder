@@ -219,20 +219,32 @@ public static partial class Backend
         while (stack.Count > 0)
         {
             string dir = stack.Pop();
-            if (IsExcluded(dir)) continue;
-            string[] files = Array.Empty<string>();
-            try { files = Directory.GetFiles(dir); } catch { }
+            bool safeDirectory;
+            try { safeDirectory = !IsExcluded(dir) && (File.GetAttributes(dir) & FileAttributes.ReparsePoint) == 0; }
+            catch { continue; }
+            if (!safeDirectory) continue;
+
+            string[] files;
+            try { files = Directory.GetFiles(dir); } catch { files = Array.Empty<string>(); }
             foreach (var f in files)
             {
-                if (IsExcluded(f)) continue;
-                yield return f;
+                bool safeFile;
+                try { safeFile = !IsExcluded(f) && (File.GetAttributes(f) & FileAttributes.ReparsePoint) == 0; }
+                catch { continue; }
+                if (safeFile) yield return f;
             }
-            try
+
+            string[] directories;
+            try { directories = Directory.GetDirectories(dir); } catch { directories = Array.Empty<string>(); }
+            foreach (var d in directories)
             {
-                foreach (var d in Directory.GetDirectories(dir))
-                    if (!IsExcluded(d)) stack.Push(d);
+                try
+                {
+                    if (!IsExcluded(d) && (File.GetAttributes(d) & FileAttributes.ReparsePoint) == 0)
+                        stack.Push(d);
+                }
+                catch { }
             }
-            catch { }
         }
     }
 
@@ -270,37 +282,99 @@ public static partial class Backend
 
     // ============================ SHREDDER ============================
 
+    static bool IsWithinPath(string path, string root)
+    {
+        try
+        {
+            string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(fullPath, fullRoot, StringComparison.OrdinalIgnoreCase) ||
+                   fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    static string ValidateManualDeletePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) throw new Exception("caminho vazio");
+        string full = Path.GetFullPath(path);
+        string volumeRoot = Path.GetPathRoot(full) ?? "";
+        if (string.Equals(full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            volumeRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            throw new Exception("não é permitido excluir uma unidade inteira");
+        if (!File.Exists(full) && !Directory.Exists(full)) throw new FileNotFoundException("caminho não encontrado", full);
+        if ((File.GetAttributes(full) & FileAttributes.ReparsePoint) != 0)
+            throw new Exception("links simbólicos, junctions e outros reparse points não são aceitos");
+        if (IsExcluded(full)) throw new Exception("caminho protegido por uma exclusão configurada");
+
+        string[] protectedRoots =
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        };
+        if (protectedRoots.Any(root => !string.IsNullOrWhiteSpace(root) &&
+            (IsWithinPath(full, root) || IsWithinPath(root, full))))
+            throw new Exception("caminho em, ou contendo, uma pasta protegida do Windows/aplicativos");
+
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(userProfile) && IsWithinPath(userProfile, full))
+            throw new Exception("não é permitido excluir a pasta raiz do perfil nem uma pasta que a contenha");
+        return full;
+    }
+
+    static void DeleteManualPath(string path, bool shred, ref ulong freed, ref int count, List<string> errors)
+    {
+        if (IsExcluded(path)) return;
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(path); }
+        catch (Exception ex) { errors.Add($"{path}: {ex.Message}"); return; }
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            errors.Add($"{path}: link/reparse point ignorado por segurança");
+            return;
+        }
+
+        if ((attributes & FileAttributes.Directory) == 0)
+        {
+            try
+            {
+                ulong size = (ulong)new FileInfo(path).Length;
+                if (shred) ShredFile(path); else File.Delete(path);
+                freed += size;
+                count++;
+            }
+            catch (Exception ex) { errors.Add($"{path}: {ex.Message}"); }
+            return;
+        }
+
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(path))
+                DeleteManualPath(file, shred, ref freed, ref count, errors);
+        }
+        catch (Exception ex) { errors.Add($"{path}: {ex.Message}"); }
+        try
+        {
+            foreach (string directory in Directory.EnumerateDirectories(path))
+                DeleteManualPath(directory, shred, ref freed, ref count, errors);
+        }
+        catch (Exception ex) { errors.Add($"{path}: {ex.Message}"); }
+        try { Directory.Delete(path, false); }
+        catch (Exception ex) { errors.Add($"{path}: pasta não removida ({ex.Message})"); }
+    }
+
     public static object DeleteFiles(string[] paths)
     {
         ulong freed = 0;
         int count = 0;
         var errors = new List<string>();
         lock (_exclLock) EnsureExclusions();
-        foreach (var p in paths)
+        foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            try
-            {
-                if (File.Exists(p))
-                {
-                    ulong len = (ulong)new FileInfo(p).Length;
-                    new FileInfo(p).Delete();
-                    freed += len;
-                    count++;
-                }
-                else if (Directory.Exists(p))
-                {
-                    ulong size = 0; int files = 0;
-                    Walk(p, null, ref size, ref files);
-                    Directory.Delete(p, true);
-                    freed += size;
-                    count += files;
-                }
-                else errors.Add($"{p}: não encontrado");
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"{p}: {ex.Message}");
-            }
+            try { DeleteManualPath(ValidateManualDeletePath(path), shred: false, ref freed, ref count, errors); }
+            catch (Exception ex) { errors.Add($"{path}: {ex.Message}"); }
         }
         return new { deleted = count, freed_bytes = freed, errors };
     }
@@ -311,41 +385,21 @@ public static partial class Backend
         int count = 0;
         var errors = new List<string>();
         lock (_exclLock) EnsureExclusions();
-        foreach (var p in paths)
+        foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            try
-            {
-                if (File.Exists(p))
-                {
-                    freed += (ulong)ShredFile(p);
-                    count++;
-                }
-                else if (Directory.Exists(p))
-                {
-                    foreach (var f in EnumerateAllFiles(p))
-                    {
-                        try { freed += (ulong)ShredFile(f); count++; }
-                        catch (Exception ex) { errors.Add($"{f}: {ex.Message}"); }
-                    }
-                    foreach (var d in Directory.EnumerateDirectories(p).Reverse())
-                        try { Directory.Delete(d, true); } catch { }
-                    try { Directory.Delete(p, true); } catch { }
-                }
-                else errors.Add($"{p}: não encontrado");
-            }
-            catch (Exception ex)
-            {
-                errors.Add($"{p}: {ex.Message}");
-            }
+            try { DeleteManualPath(ValidateManualDeletePath(path), shred: true, ref freed, ref count, errors); }
+            catch (Exception ex) { errors.Add($"{path}: {ex.Message}"); }
         }
         return new { shredded = count, freed_bytes = freed, errors };
     }
 
     static long ShredFile(string path)
     {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("não é permitido triturar links simbólicos ou reparse points");
         var fi = new FileInfo(path);
         long len = fi.Length;
-        using (var fs = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        using (var fs = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1024 * 1024, FileOptions.WriteThrough))
         {
             var buf = new byte[1024 * 1024];
             long remaining = fs.Length;
@@ -358,15 +412,7 @@ public static partial class Backend
             }
             fs.Flush(flushToDisk: true);
         }
-        try
-        {
-            string dir = Path.GetDirectoryName(path) ?? ".";
-            string rnd = Path.Combine(dir, "___" + Guid.NewGuid().ToString("N")[..16]);
-            File.Move(path, rnd);
-            path = rnd;
-        }
-        catch { }
-        try { File.Delete(path); } catch { }
+        File.Delete(path);
         return len;
     }
 

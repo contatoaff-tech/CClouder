@@ -61,8 +61,9 @@ export default function Sidebar({
 
   const formatNumber = (num: number) => new Intl.NumberFormat('pt-BR').format(num)
 
-  const allChecked = categories.every(c => c.checked)
-  const someChecked = categories.some(c => c.checked)
+  const selectableCategories = categories.filter(c => activeTab === 'registry' ? c.id === 'registry' : c.id !== 'registry')
+  const allChecked = selectableCategories.length > 0 && selectableCategories.every(c => c.items.every(i => i.checked))
+  const someChecked = selectableCategories.some(c => c.items.some(i => i.checked))
 
   return (
     <aside className="w-72 bg-[var(--sidebar)] border-r border-[var(--border)] flex flex-col glass">
@@ -97,7 +98,10 @@ export default function Sidebar({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-[var(--fg)]">Categorias</h3>
             <button
-              onClick={() => categories.forEach(c => onToggleCategory(c.id))}
+              onClick={() => selectableCategories.forEach(c => {
+                const shouldCheck = !allChecked
+                if (c.items.some(i => i.checked !== shouldCheck)) onToggleCategory(c.id)
+              })}
               className="text-xs text-[var(--accent)] hover:underline"
               aria-label={allChecked ? 'Desmarcar todas' : 'Marcar todas'}
             >
@@ -106,7 +110,7 @@ export default function Sidebar({
           </div>
 
           <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin">
-            {categories.map(cat => (
+            {selectableCategories.map(cat => (
               <div key={cat.id} className="group">
                 <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[var(--card)] cursor-pointer transition-colors">
                   <input

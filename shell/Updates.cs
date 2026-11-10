@@ -198,7 +198,10 @@ public static partial class Backend
 
         using var doc = JsonDocument.Parse(json);
         string tag = doc.RootElement.TryGetProperty("tag_name", out var t) ? t.GetString() ?? "" : "";
+        if (!System.Text.RegularExpressions.Regex.IsMatch(tag, @"^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$"))
+            throw new Exception("tag de versão inválida recebido do GitHub");
         string url = "";
+        string digest = "";
         long size = 0;
         if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
         {
@@ -208,42 +211,107 @@ public static partial class Backend
                 if (an.Equals("CClouder.exe", StringComparison.OrdinalIgnoreCase))
                 {
                     url = a.TryGetProperty("browser_download_url", out var u) ? u.GetString() ?? "" : "";
+                    digest = a.TryGetProperty("digest", out var d) ? d.GetString() ?? "" : "";
                     size = a.TryGetProperty("size", out var s) ? s.GetInt64() : 0;
                 }
             }
         }
         string current = typeof(Backend).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
         string latest = tag.TrimStart('v', 'V');
-        bool has = !string.Equals(current, latest, StringComparison.OrdinalIgnoreCase);
+        if (!Version.TryParse(current, out var currentVersion) || !Version.TryParse(latest, out var latestVersion))
+            throw new Exception("não foi possível comparar as versões do aplicativo");
+        bool has = latestVersion > currentVersion;
         string notes = doc.RootElement.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
-        return new { current, latest, has_update = has, url, size, notes };
+        return new { current, latest, has_update = has, url, size, digest, notes };
     }
+
+    internal static void VerifyUpdateBytes(byte[] bytes, long expectedSize, string expectedDigest)
+    {
+        if (bytes.Length < 1024 || bytes[0] != (byte)'M' || bytes[1] != (byte)'Z')
+            throw new Exception("o arquivo baixado não parece ser um executável Windows válido");
+        if (expectedSize > 0 && bytes.LongLength != expectedSize)
+            throw new Exception("o tamanho do download não corresponde ao asset publicado");
+        if (!System.Text.RegularExpressions.Regex.IsMatch(expectedDigest, @"^sha256:[0-9a-fA-F]{64}$"))
+            throw new Exception("a release não publicou SHA-256; atualização recusada por segurança");
+        string actualDigest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        if (!actualDigest.Equals(expectedDigest[7..], StringComparison.OrdinalIgnoreCase))
+            throw new Exception("a verificação SHA-256 do download falhou");
+    }
+
+    static string PsLiteral(string value) => "'" + value.Replace("'", "''") + "'";
 
     public static object DownloadAppUpdate(string url)
     {
-        if (string.IsNullOrWhiteSpace(url)) throw new Exception("URL de download vazia");
+        if (string.IsNullOrWhiteSpace(url) ||
+            !Uri.TryCreate(url, UriKind.Absolute, out var updateUri) ||
+            updateUri.Scheme != Uri.UriSchemeHttps || !updateUri.IsDefaultPort ||
+            !updateUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
+            !updateUri.AbsolutePath.StartsWith("/contatoaff-tech/CClouder/releases/download/", StringComparison.OrdinalIgnoreCase) ||
+            !updateUri.AbsolutePath.EndsWith("/CClouder.exe", StringComparison.OrdinalIgnoreCase))
+            throw new Exception("URL de download inválida; use o executável das releases oficiais do GitHub");
         string currentExe = Environment.ProcessPath ?? "";
         if (!currentExe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             throw new Exception("a auto-atualização só funciona no exe publicado");
 
-        string temp = Path.Combine(Path.GetTempPath(), "CClouder-update.exe");
-        using (var http = NewGithubClient())
+        var release = CheckAppUpdate();
+        using var releaseDoc = JsonDocument.Parse(JsonSerializer.Serialize(release));
+        string expectedUrl = releaseDoc.RootElement.GetProperty("url").GetString() ?? "";
+        string expectedDigest = releaseDoc.RootElement.GetProperty("digest").GetString() ?? "";
+        long expectedSize = releaseDoc.RootElement.GetProperty("size").GetInt64();
+        if (!Uri.TryCreate(expectedUrl, UriKind.Absolute, out var releaseUri) ||
+            !string.Equals(releaseUri.AbsoluteUri, updateUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+            throw new Exception("o endereço não corresponde ao executável da release oficial mais recente");
+
+        string downloadPath = Path.Combine(Path.GetTempPath(), "CClouder-update-" + Guid.NewGuid().ToString("N") + ".exe");
+        string candidatePath = currentExe + ".update-" + Guid.NewGuid().ToString("N");
+        string backupPath = currentExe + ".previous-" + Guid.NewGuid().ToString("N");
+        string scriptPath = Path.Combine(Path.GetTempPath(), "CClouder-update-" + Guid.NewGuid().ToString("N") + ".ps1");
+        try
         {
-            byte[] bytes = http.GetByteArrayAsync(url).GetAwaiter().GetResult();
-            File.WriteAllBytes(temp, bytes);
+            byte[] bytes;
+            using (var http = NewGithubClient())
+                bytes = http.GetByteArrayAsync(updateUri).GetAwaiter().GetResult();
+            VerifyUpdateBytes(bytes, expectedSize, expectedDigest);
+            File.WriteAllBytes(downloadPath, bytes);
+            // Stage beside the installed executable so the final replacement is on the same volume.
+            File.Copy(downloadPath, candidatePath, overwrite: false);
+            File.Delete(downloadPath);
+
+            string script =
+                "$ErrorActionPreference = 'Stop'\r\n" +
+                "$target = " + PsLiteral(currentExe) + "\r\n" +
+                "$candidate = " + PsLiteral(candidatePath) + "\r\n" +
+                "$backup = " + PsLiteral(backupPath) + "\r\n" +
+                "$log = Join-Path $env:LOCALAPPDATA 'CClouder\\update.log'\r\n" +
+                "$null = New-Item -ItemType Directory -Path (Split-Path -Parent $log) -Force\r\n" +
+                "Start-Sleep -Seconds 2\r\n" +
+                "$installed = $false\r\n" +
+                "for ($i = 0; $i -lt 20; $i++) { try { [System.IO.File]::Replace($candidate, $target, $backup, $true); $installed = $true; break } catch { Start-Sleep -Seconds 1 } }\r\n" +
+                "if (-not $installed) { ('Falha ao substituir o executável em ' + (Get-Date)) | Set-Content -LiteralPath $log -Encoding UTF8; exit 1 }\r\n" +
+                "try { Start-Process -FilePath $target; try { Remove-Item -LiteralPath $backup -Force } catch {}; exit 0 } catch { try { [System.IO.File]::Replace($backup, $target, $candidate, $true) } catch {}; ($_ | Out-String) | Set-Content -LiteralPath $log -Encoding UTF8; exit 1 }\r\n";
+            File.WriteAllText(scriptPath, script, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            var psi = new ProcessStartInfo("powershell.exe")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden,
+            };
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-File");
+            psi.ArgumentList.Add(scriptPath);
+            _ = Process.Start(psi) ?? throw new Exception("não foi possível iniciar o helper de atualização");
+            return new { ok = true, restart_required = true };
         }
-        string bat = Path.Combine(Path.GetTempPath(), "cclinear-update.bat");
-        File.WriteAllText(bat,
-            "@echo off\r\n" +
-            "timeout /t 3 /nobreak >nul\r\n" +
-            $"copy /y \"{temp}\" \"{currentExe}\" >nul\r\n" +
-            $"start \"\" \"{currentExe}\"\r\n" +
-            "del \"%~f0\" >nul\r\n");
-        Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{bat}\"")
+        catch
         {
-            CreateNoWindow = true,
-            UseShellExecute = false,
-        });
-        return new { ok = true, downloaded_to = temp };
+            try { if (File.Exists(downloadPath)) File.Delete(downloadPath); } catch { }
+            try { if (File.Exists(candidatePath)) File.Delete(candidatePath); } catch { }
+            try { if (File.Exists(scriptPath)) File.Delete(scriptPath); } catch { }
+            throw;
+        }
     }
 }

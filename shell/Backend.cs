@@ -84,7 +84,7 @@ public static partial class Backend
             It("edge_cookies", "Edge Cookies", "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Network", false),
             It("chrome_cache", "Chrome Cache", "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache"),
             It("chrome_cookies", "Chrome Cookies", "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Network", false),
-            It("firefox_cache", "Firefox Cache", "%APPDATA%\\Mozilla\\Firefox\\Profiles"),
+            It("firefox_cache", "Firefox Cache (somente cache)", "Perfis do Firefox\\cache2"),
             It("brave_cache", "Brave Cache", "%LOCALAPPDATA%\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Cache"),
             It("opera_cache", "Opera Cache", "%APPDATA%\\Opera Software\\Opera Stable\\Cache")),
 
@@ -135,6 +135,114 @@ public static partial class Backend
         return p;
     }
 
+    static List<string> FirefoxCacheDirectories() => FirefoxCacheDirectories(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+
+    internal static List<string> FirefoxCacheDirectories(string roaming, string local)
+    {
+        var firefoxRoaming = Path.Combine(roaming, "Mozilla", "Firefox");
+        var profileDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddProfile(string path, bool relative)
+        {
+            try
+            {
+                string candidate = relative ? Path.Combine(firefoxRoaming, path) : Environment.ExpandEnvironmentVariables(path);
+                candidate = Path.GetFullPath(candidate);
+                if (Directory.Exists(candidate) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) == 0)
+                    profileDirs.Add(candidate);
+            }
+            catch { }
+        }
+
+        // Firefox keeps profile locations in profiles.ini; cache2 itself is the
+        // only directory this cleaner may touch (never the profile root).
+        string profilesIni = Path.Combine(firefoxRoaming, "profiles.ini");
+        try
+        {
+            if (File.Exists(profilesIni))
+            {
+                bool inProfile = false, relative = true;
+                string profilePath = "";
+                void AddCurrentProfile()
+                {
+                    if (inProfile && !string.IsNullOrWhiteSpace(profilePath)) AddProfile(profilePath, relative);
+                }
+
+                foreach (string raw in File.ReadLines(profilesIni))
+                {
+                    string line = raw.Trim();
+                    if (line.StartsWith('[') && line.EndsWith(']'))
+                    {
+                        AddCurrentProfile();
+                        string section = line[1..^1];
+                        inProfile = section.StartsWith("Profile", StringComparison.OrdinalIgnoreCase);
+                        profilePath = "";
+                        relative = true;
+                        continue;
+                    }
+                    if (!inProfile) continue;
+                    int equals = line.IndexOf('=');
+                    if (equals <= 0) continue;
+                    string key = line[..equals].Trim();
+                    string value = line[(equals + 1)..].Trim();
+                    if (key.Equals("Path", StringComparison.OrdinalIgnoreCase)) profilePath = value;
+                    else if (key.Equals("IsRelative", StringComparison.OrdinalIgnoreCase))
+                        relative = value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase);
+                }
+                AddCurrentProfile();
+            }
+        }
+        catch { }
+
+        // Also discover profiles when profiles.ini is absent or incomplete.
+        foreach (string root in new[]
+        {
+            Path.Combine(firefoxRoaming, "Profiles"),
+            Path.Combine(local, "Mozilla", "Firefox", "Profiles"),
+        })
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                    foreach (string profile in Directory.EnumerateDirectories(root))
+                        AddProfile(profile, relative: false);
+            }
+            catch { }
+        }
+
+        var caches = new List<string>();
+        foreach (string profile in profileDirs)
+        {
+            try
+            {
+                string cache = Path.Combine(profile, "cache2");
+                if (!Directory.Exists(cache)) continue;
+                if ((File.GetAttributes(cache) & FileAttributes.ReparsePoint) != 0) continue;
+                caches.Add(cache);
+            }
+            catch { }
+        }
+        return caches;
+    }
+
+    static (ulong size, int count) ScanFirefoxCache()
+    {
+        ulong size = 0;
+        int count = 0;
+        foreach (string cache in FirefoxCacheDirectories()) Walk(cache, null, ref size, ref count);
+        return (size, count);
+    }
+
+    internal static (ulong size, int count) CleanFirefoxCache()
+    {
+        ulong size = 0;
+        int count = 0;
+        foreach (string cache in FirefoxCacheDirectories()) CleanWalk(cache, null, ref size, ref count);
+        return (size, count);
+    }
+
     // ============================ SCAN ============================
 
     public static async Task<object> RunScan(Action<object> onProgress, Action<object> onComplete,
@@ -177,8 +285,9 @@ public static partial class Backend
         return (scanned, totalSize, totalCount);
     }
 
-    static (ulong, int) ScanItem(Item it)
+    internal static (ulong, int) ScanItem(Item it)
     {
+        if (it.id == "firefox_cache") return ScanFirefoxCache();
         if (it.is_registry) return RegistryCount(it.id);
         if (it.id == "dns_cache") return (0, 0);
         string path = ExpandEnv(it.path);
@@ -228,7 +337,7 @@ public static partial class Backend
                 AddFile(f, cutoff, ref size, ref count);
             foreach (var d in Directory.EnumerateDirectories(dir))
             {
-                if (IsExcluded(d)) continue;
+                if (IsExcluded(d) || (File.GetAttributes(d) & FileAttributes.ReparsePoint) != 0) continue;
                 Walk(d, cutoff, ref size, ref count);
             }
         }
@@ -237,7 +346,20 @@ public static partial class Backend
 
     // ============================ LIMPEZA DE ARQUIVOS ============================
 
-    public static object CleanSelected(JsonElement payload)
+    internal static Item? ResolveCleanItem(string id)
+    {
+        var definition = BuildCategories().SelectMany(c => c.items)
+            .FirstOrDefault(i => i.id.Equals(id, StringComparison.OrdinalIgnoreCase));
+        return definition == null ? null : new Item
+        {
+            id = definition.id,
+            name = definition.name,
+            path = definition.path,
+            is_registry = definition.is_registry,
+        };
+    }
+
+    internal static object CleanSelected(JsonElement payload)
     {
         ulong freed = 0;
         int freedCount = 0;
@@ -248,13 +370,14 @@ public static partial class Backend
             foreach (var el in items.EnumerateArray())
             {
                 if (!(el.TryGetProperty("checked", out var c) && c.ValueKind == JsonValueKind.True && c.GetBoolean())) continue;
-                var it = new Item
+                string id = el.TryGetProperty("id", out var idElement) && idElement.ValueKind == JsonValueKind.String
+                    ? idElement.GetString() ?? "" : "";
+                var it = ResolveCleanItem(id);
+                if (it == null)
                 {
-                    id = el.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() ?? "" : "",
-                    name = el.TryGetProperty("name", out var nm) && nm.ValueKind == JsonValueKind.String ? nm.GetString() ?? "" : "",
-                    path = el.TryGetProperty("path", out var pp) && pp.ValueKind == JsonValueKind.String ? pp.GetString() ?? "" : "",
-                    is_registry = el.TryGetProperty("is_registry", out var rg) && rg.ValueKind == JsonValueKind.True && rg.GetBoolean(),
-                };
+                    errors.Add($"item desconhecido: {id}");
+                    continue;
+                }
                 try
                 {
                     var (b, n) = CleanItem(it);
@@ -270,8 +393,9 @@ public static partial class Backend
         return new { freed_bytes = freed, freed_count = freedCount, errors };
     }
 
-    static (ulong, int) CleanItem(Item it)
+    internal static (ulong, int) CleanItem(Item it)
     {
+        if (it.id == "firefox_cache") return CleanFirefoxCache();
         if (it.is_registry) return RegistryClean(it.id);
         if (it.id == "dns_cache") { FlushDns(); return (0, 1); }
         string path = ExpandEnv(it.path);
@@ -318,7 +442,7 @@ public static partial class Backend
                 DeleteFile(f, cutoff, ref freed, ref count);
             foreach (var d in Directory.EnumerateDirectories(dir))
             {
-                if (IsExcluded(d)) continue;
+                if (IsExcluded(d) || (File.GetAttributes(d) & FileAttributes.ReparsePoint) != 0) continue;
                 CleanWalk(d, cutoff, ref freed, ref count);
                 try { Directory.Delete(d, false); } catch { }
             }

@@ -157,6 +157,18 @@ window.chrome.webview.addEventListener('message', (e) => {
             var env = await CoreWebView2Environment.CreateAsync(null, udata);
             await Web.EnsureCoreWebView2Async(env);
             Web.CoreWebView2.WebMessageReceived += OnWebMessage;
+            Web.CoreWebView2.FrameCreated += (_, e) =>
+            {
+                e.Frame.NavigationStarting += (_, navigation) => navigation.Cancel = true;
+            };
+            Web.CoreWebView2.NavigationStarting += (_, e) =>
+            {
+                if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) &&
+                    uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort &&
+                    uri.Host.Equals("cclinear.app", StringComparison.OrdinalIgnoreCase))
+                    return;
+                e.Cancel = true;
+            };
             await Web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(Shim);
             string dist = Path.Combine(AppContext.BaseDirectory, "dist");
             Web.CoreWebView2.SetVirtualHostNameToFolderMapping(
@@ -190,6 +202,15 @@ window.chrome.webview.addEventListener('message', (e) => {
 
         try
         {
+            if (e.Source != Web.CoreWebView2.Source ||
+                !Uri.TryCreate(e.Source, UriKind.Absolute, out var source) ||
+                source.Scheme != Uri.UriSchemeHttps || !source.IsDefaultPort ||
+                !source.Host.Equals("cclinear.app", StringComparison.OrdinalIgnoreCase))
+            {
+                ReplyError(req, "origem IPC não autorizada");
+                return;
+            }
+
             switch (cmd)
             {
                 case "plugin:event|listen":

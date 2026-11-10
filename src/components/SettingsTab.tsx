@@ -525,6 +525,7 @@ interface UpdateInfo {
   has_update: boolean
   url: string
   size: number
+  digest: string
   notes: string
 }
 
@@ -552,7 +553,7 @@ function AppUpdateCard() {
     setStatus(null)
     try {
       await invoke('download_app_update', { url: info.url })
-      setStatus('Atualização baixada - o CClouder vai fechar e reabrir com a nova versão em instantes.')
+      setStatus('Atualização validada e preparada. O aplicativo será reiniciado para aplicar a versão nova.')
     } catch (e) {
       setStatus(String(e))
     } finally {

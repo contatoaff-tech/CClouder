@@ -50,7 +50,7 @@ export default function RegistryTab({
     Object.fromEntries(registryCats.map(c => [c.id, true]))
   )
 
-  const allChecked = registryCats.every(c => c.items.every(i => i.checked))
+  const allChecked = registryCats.length > 0 && registryCats.every(c => c.items.every(i => i.checked))
   const someChecked = registryCats.some(c => c.items.some(i => i.checked))
 
   return (
@@ -62,7 +62,12 @@ export default function RegistryTab({
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => onSelectAll(!allChecked)}
+            onClick={() => {
+              const checked = !allChecked
+              registryCats.forEach(cat => cat.items.forEach(item => {
+                if (item.checked !== checked) onToggleItem(cat.id, item.id)
+              }))
+            }}
             className="btn-secondary text-sm flex items-center gap-2"
             aria-label={allChecked ? 'Desmarcar todos' : 'Marcar todos'}
           >
@@ -159,7 +164,12 @@ function CategorySection({
               <input
                 type="checkbox"
                 checked={category.checked}
-                onChange={() => category.items.forEach(i => onToggleItem(category.id, i.id))}
+                onChange={() => {
+                  const checked = category.items.some(i => !i.checked)
+                  category.items.forEach(i => {
+                    if (i.checked !== checked) onToggleItem(category.id, i.id)
+                  })
+                }}
                 className="w-4 h-4 accent-[var(--accent)] rounded border-[var(--border)] bg-[var(--card)]"
               />
             </label>

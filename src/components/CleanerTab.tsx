@@ -57,7 +57,7 @@ export default function CleanerTab({
     Object.fromEntries(categories.map(c => [c.id, true]))
   )
 
-  const allChecked = categories.every(c => c.items.every(i => i.checked))
+  const allChecked = categories.length > 0 && categories.every(c => c.items.every(i => i.checked))
   const someChecked = categories.some(c => c.items.some(i => i.checked))
 
   return (
@@ -179,7 +179,12 @@ function CategorySection({
               <input
                 type="checkbox"
                 checked={category.checked}
-                onChange={() => category.items.forEach(i => onToggleItem(category.id, i.id))}
+                onChange={() => {
+                const checked = category.items.some(i => !i.checked)
+                category.items.forEach(i => {
+                  if (i.checked !== checked) onToggleItem(category.id, i.id)
+                })
+              }}
                 className="w-4 h-4 accent-[var(--accent)] rounded border-[var(--border)] bg-[var(--card)]"
                 aria-label={category.checked ? `Desmarcar ${category.name}` : `Marcar ${category.name}`}
               />

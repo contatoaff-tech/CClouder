@@ -40,7 +40,7 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 
 **1. Interface.** A UI é um app React normal (React 18 + Tailwind + Lucide) compilado pelo Vite. O resultado (`dist/`) é embutido dentro do exe no publish (`IncludeAllContentForSelfExtract`) e extraído em tempo de execução. O WebView2 carrega tudo via host virtual `https://cclinear.app`.
 
-**2. Ponte IPC.** O frontend usa as APIs do `@tauri-apps/api` (`invoke` e `listen`). Como o shell é C#, não Tauri, um **shim** injetado em cada documento (`AddScriptToExecuteOnDocumentCreatedAsync`) replica o contrato exato da API v2:
+**2. Ponte IPC.** O frontend usa `invoke`/`listen` de `@tauri-apps/api`, mas **não há runtime Tauri no projeto** — o pacote é usado apenas como cliente do contrato. Um **shim** injetado em cada documento (`AddScriptToExecuteOnDocumentCreatedAsync`) implementa esse contrato em cima do WebView2:
 - `invoke(cmd, args)` → `postMessage({__req, __cmd, __payload})` → o C# roteia para o backend e responde com `PostWebMessageAsJson({__req, ok, data})`, resolvendo a Promise do JS;
 - `transformCallback(callback)` → registra callbacks numerados, igual ao runtime real do Tauri;
 - `listen(event, handler)` → o handler é registrado localmente no shim e o C# entrega eventos (`scan-progress`, `scan-complete`) via `ExecuteScriptAsync("window.__TAURI_INTERNALS__.runCallback(id, {event, payload})")`.
@@ -56,23 +56,31 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 | `get_installed_programs` / `uninstall_program` | Enumera as 3 chaves Uninstall e executa o `UninstallString` |
 | `analyze_disk` | Tamanho recursivo **paralelo** (`Parallel.ForEach`) das pastas do caminho |
 
-**4. Por que WPF/WebView2 e não Tauri?** Portabilidade: a UI React de um projeto Tauri funciona em qualquer host que forneça `__TAURI_INTERNALS__`. Sem Rust instalado, o mesmo frontend roda sobre um host C# de ~2,5 MB. O backend C# substitui 1:1 os comandos Tauri originais.
+**4. Por que WPF/WebView2?** O backend nativo é C#/.NET 10, sem Rust no projeto. O shell é a única implementação oficial: publica um exe único de ~3 MB e não requer toolchain além do SDK .NET. (O antigo esqueleto Tauri em `src-tauri/` foi removido para não manter dois backends divergentes.)
 
-**5. Segurança.** `asInvoker` (sem pedir admin por padrão — itens de sistema que exigem elevation simplesmente falham e são contados como "itens pulados"); nada é enviado para fora do computador; nenhum updater; nenhum código ofuscado.
+**5. Segurança.** `asInvoker` (sem pedir admin por padrão — itens de sistema que exigem elevation simplesmente falham e são contados como "itens pulados"); nada é enviado para fora do computador; nenhum código ofuscado. A ponte IPC só aceita mensagens da origem local `https://cclinear.app` e a navegação para outras origens é bloqueada.
+
+**6. Proteções de exclusão.** `delete_files`/`shred_paths` (e as limpezas) recusam unidades inteiras, pastas de sistema (Windows, Program Files, ProgramData), a raiz do perfil e links simbólicos/junctions; as exclusões configuradas também são respeitadas. A limpeza do Firefox toca apenas o diretório `cache2` de cada perfil lido de `profiles.ini`, nunca o perfil inteiro. A sobrescrita do triturador não garante apagamento físico em SSDs, armazenamento flash ou volumes com snapshots.
 
 ## Auto-update (v1.3)
 
-A aba **Configurações → Sobre** consulta `api.github.com/repos/contatoaff-tech/CClouder/releases/latest`, compara com a versão instalada e, se houver versão nova, baixa o exe da release e se substitui em tempo de execução (script de troca aguarda o processo sair e reabre).
+A aba **Configurações → Sobre** consulta `api.github.com/repos/contatoaff-tech/CClouder/releases/latest`, compara com a versão instalada e, se houver versão nova, baixa o `CClouder.exe` da release. Antes de instalar, o app confere se a URL é o asset oficial mais recente, valida o tamanho e o **SHA-256 publicado no asset** (`digest` da API do GitHub) e recusa atualizações sem digest. O executável é preparado ao lado do instalado e um helper do PowerShell faz a troca com backup e reabre o app; falhas ficam registradas em `%LOCALAPPDATA%\CClouder\update.log`.
+
+> Releases sem `digest` SHA-256 no asset não são instaladas. Publique o executável pela interface de releases do GitHub (ou envie o digest no asset) para habilitar o auto-update.
 
 ## Estrutura
 
 ```
 CClouder/
-├── src/               # Frontend React + TypeScript + Tailwind (7 abas, 12 componentes)
-├── src-tauri/         # (opcional) configuração Tauri original
-├── shell/             # Shell nativo WPF + WebView2 (C#/.NET 10)
+├── src/               # Frontend React + TypeScript + Tailwind (10 abas, 17 componentes)
+├── shell/             # Shell nativo WPF + WebView2 (C#/.NET 10) — único backend
 │   ├── MainWindow.xaml.cs   # Ponte IPC: shim window.__TAURI_INTERNALS__ ↔ C#
-│   └── Backend.cs           # Scan/limpeza de arquivos, registro, inicialização, disco
+│   ├── Backend.cs           # Scan/limpeza de arquivos, registro, inicialização, disco
+│   ├── Tools.cs             # Duplicatas, triturador, menu de contexto, tasks, exclusões
+│   ├── FileTools.cs         # Pastas/arquivos vazios, maiores arquivos, imagens similares
+│   ├── Drivers.cs           # Drivers, hardware, runtimes, reparos
+│   ├── Updates.cs           # winget, processos, auto-update
+│   └── RegistryBackup.cs    # Backup e restauração do registro
 ├── dist/              # Frontend compilado (npm run build)
 └── LICENSE            # MIT
 ```
@@ -83,11 +91,12 @@ CClouder/
 # Frontend
 npm install && npm run build
 
-# Shell nativo → exe único (~2,5 MB)
-cd shell
-dotnet publish -c Release -r win-x64 --self-contained false \
-  -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true
-# resultado: bin/Release/net10.0-windows/win-x64/publish/CClouder.exe
+# Shell nativo → exe único (~3 MB)
+npm run publish
+# ou: dotnet publish shell/CClouder.csproj -c Release -r win-x64 \
+#       --self-contained false -p:PublishSingleFile=true \
+#       -p:IncludeAllContentForSelfExtract=true
+# resultado: shell/bin/Release/net10.0-windows/win-x64/publish/CClouder.exe
 ```
 
 Requisitos: .NET 10 Desktop Runtime + WebView2 Runtime (ambos já presentes no Windows 11 atualizado).
