@@ -27,6 +27,7 @@ interface RegistryTabProps {
   scanning: boolean
   cleaning: boolean
   onClean: () => void
+  onOpenFolder: (path: string) => void
   totalSelected: number
   totalSize: number
   formatBytes: (bytes: number) => string
@@ -42,6 +43,7 @@ export default function RegistryTab({
   onClean,
   totalSelected,
   totalSize,
+  onOpenFolder,
   formatBytes,
   formatNumber
 }: RegistryTabProps) {
@@ -89,17 +91,18 @@ export default function RegistryTab({
         <div className="flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-[var(--warning)] flex-shrink-0 mt-0.5" />
           <div className="text-sm text-[var(--fg)]">
-            <p className="font-medium text-[var(--warning)] mb-1">Atenção: Limpeza de Registro</p>
-            <p>O CClouder detecta entradas órfãs e inválidas, mas <strong>não remove automaticamente</strong> por segurança. Use esta aba para:</p>
+            <p className="font-medium text-[var(--warning)] mb-1">Atenção: remoção de entradas do Registro</p>
+            <p>Ao marcar itens e usar <strong>"Corrigir Selecionados"</strong>, as entradas órfãs são <strong>removidas do Registro</strong>. Antes de cada remoção, o CClouder exporta automaticamente um backup em <code className="text-xs font-mono">%USERPROFILE%\CClouderBackups</code> — você pode restaurá-lo pelo card abaixo.</p>
             <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>Identificar chaves problemáticas</li>
-              <li>Exportar lista para revisão manual</li>
-              <li>Usar ferramentas nativas (regedit) com cautela</li>
+              <li>Revise os caminhos marcados antes de corrigir</li>
+              <li>Use os backups para desfazer se algo sair do esperado</li>
             </ul>
-            <p className="mt-2">Recomendamos criar um ponto de restauração antes de qualquer alteração no registro.</p>
+            <p className="mt-2">Recomendamos criar um ponto de restauração do Windows antes de qualquer alteração no registro.</p>
           </div>
         </div>
       </div>
+
+      <RegistryBackupsCard />
 
       <div className="space-y-3">
         {registryCats.map(cat => (
@@ -110,6 +113,7 @@ export default function RegistryTab({
             expanded={expanded[cat.id]}
             onToggleExpand={() => setExpanded(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
             onToggleItem={onToggleItem}
+            onOpenFolder={onOpenFolder}
             formatBytes={formatBytes}
             formatNumber={formatNumber}
           />
@@ -132,6 +136,7 @@ function CategorySection({
   expanded,
   onToggleExpand,
   onToggleItem,
+  onOpenFolder,
   formatBytes,
   formatNumber
 }: {
@@ -140,6 +145,7 @@ function CategorySection({
   expanded: boolean
   onToggleExpand: () => void
   onToggleItem: (catId: string, itemId: string) => void
+  onOpenFolder: (path: string) => void
   formatBytes: (bytes: number) => string
   formatNumber: (num: number) => string
 }) {
@@ -189,6 +195,7 @@ function CategorySection({
               item={item}
               categoryId={category.id}
               onToggle={onToggleItem}
+              onOpenFolder={onOpenFolder}
             />
           ))}
         </div>
@@ -200,11 +207,13 @@ function CategorySection({
 function RegistryItemRow({
   item,
   categoryId,
-  onToggle
+  onToggle,
+  onOpenFolder
 }: {
   item: CleanItem
   categoryId: string
   onToggle: (catId: string, itemId: string) => void
+  onOpenFolder: (path: string) => void
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -234,12 +243,16 @@ function RegistryItemRow({
           </span>
         )}
       </div>
-      {hovered && (
-        <button className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Detalhes">
+      {hovered && item.is_registry === false && (
+        <button
+          onClick={() => onOpenFolder(item.path)}
+          className="btn-ghost p-1.5 transition-opacity"
+          aria-label={`Abrir pasta de ${item.name}`}
+          title="Abrir pasta"
+        >
           <FolderOpen className="w-4 h-4" />
         </button>
       )}
-      <RegistryBackupsCard />
     </div>
   )
 }
@@ -274,12 +287,12 @@ function RegistryBackupsCard() {
   useEffect(() => { load() }, [load])
 
   const restore = async (b: RegBackup) => {
-    if (!confirm(`Restaurar o backup ${b.name}? As entradas removidas voltarao ao registro.`)) return
+    if (!confirm(`Restaurar o backup ${b.name}? As entradas removidas voltarão ao registro.`)) return
     setBusy(b.file)
     setStatus(null)
     try {
       const r = await invoke<{ restored_values: number; restored_keys: number; skipped: number }>('restore_registry_backup', { file: b.file })
-      setStatus(`Restaurado: ${r.restored_values} valores, ${r.restored_keys} chaves${r.skipped ? ` - ${r.skipped} ignorados (backups antigos sem conteudo)` : ''}`)
+      setStatus(`Restaurado: ${r.restored_values} valores, ${r.restored_keys} chaves${r.skipped ? ` - ${r.skipped} ignorados (backups antigos sem conteúdo)` : ''}`)
     } catch (e) {
       setStatus(String(e))
     } finally {
@@ -315,7 +328,7 @@ function RegistryBackupsCard() {
                 onClick={() => restore(b)}
                 disabled={busy !== null}
                 className="btn-secondary !py-1 !text-xs flex items-center gap-1"
-                title={b.restorable ? 'Restaurar' : 'Backup antigo (conteudo de subchaves nao capturado)'}
+                title={b.restorable ? 'Restaurar' : 'Backup antigo (conteúdo de subchaves não capturado)'}
               >
                 {busy === b.file ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
                 Restaurar

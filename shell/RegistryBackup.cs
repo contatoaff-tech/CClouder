@@ -74,7 +74,7 @@ public static partial class Backend
             using var existing = hive.OpenSubKey(path);
             if (existing != null) return hive.OpenSubKey(path, writable: true);
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("RegistryBackup/#1", ex); }
         try { return hive.CreateSubKey(path, writable: true); }
         catch { return null; }
     }
@@ -93,7 +93,7 @@ public static partial class Backend
         foreach (var dir in dirs.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!Directory.Exists(dir)) continue;
-            try { files.AddRange(Directory.GetFiles(dir, "backup-*.json")); } catch { }
+            try { files.AddRange(Directory.GetFiles(dir, "backup-*.json")); } catch (Exception ex) { Diag.Swallow("RegistryBackup/#2", ex); }
         }
         return files
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -220,22 +220,7 @@ public static partial class Backend
                     if (data == null && kind != "Binary") continue;
                     key.SetValue(name, data!, ParseKind(kind));
                 }
-                catch { }
-            }
-        }
-        if (tree.TryGetProperty("subkeys", out var subs) && subs.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var s in subs.EnumerateArray())
-            {
-                try
-                {
-                    string name = s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                    if (string.IsNullOrEmpty(name)) continue;
-                    if (!s.TryGetProperty("tree", out var subTree)) continue;
-                    using var sk = key.CreateSubKey(name, writable: true);
-                    if (sk != null) RestoreTree(sk, subTree);
-                }
-                catch { }
+                catch (Exception ex) { Diag.Swallow("RegistryBackup/#4", ex); }
             }
         }
     }

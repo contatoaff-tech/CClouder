@@ -1,8 +1,8 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { Loader2, X, CheckCircle, AlertCircle, HardDrive, Database, Sparkles, FolderOpen, Eye, Zap } from 'lucide-react'
 
 interface ScanProgressModalProps {
-  progress: { current_category: string; progress: number; found_size: number; found_count: number } | null
+  progress: { current_category: string; category_id?: string; progress: number; found_size: number; found_count: number } | null
   onCancel: () => void
   scanning: boolean
 }
@@ -36,10 +36,17 @@ function formatNumber(num: number): string {
 }
 
 export default function ScanProgressModal({ progress, onCancel, scanning }: ScanProgressModalProps) {
+  useEffect(() => {
+    if (!scanning) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [scanning, onCancel])
+
   if (!progress && !scanning) return null
 
   const currentCat = progress?.current_category || 'Iniciando...'
-  const catKey = Object.keys(categoryNames).find(k => categoryNames[k] === currentCat) || 'system'
+  const catKey = progress?.category_id || Object.keys(categoryNames).find(k => categoryNames[k] === currentCat) || 'system'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm anim-fade-in">
@@ -57,7 +64,7 @@ export default function ScanProgressModal({ progress, onCancel, scanning }: Scan
               <h3 className="text-lg font-semibold text-[var(--fg)]">
                 {scanning ? 'Escaneando...' : 'Escaneamento Concluído'}
               </h3>
-              <p className="text-sm text-[var(--muted)]">Analisando arquivos do sistema</p>
+              <p className="text-sm text-[var(--muted)]">Analisando arquivos das categorias selecionadas</p>
             </div>
           </div>
           <button

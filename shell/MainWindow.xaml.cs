@@ -87,6 +87,10 @@ window.chrome.webview.addEventListener('message', (e) => {
             };
             var menu = new WinForms.ContextMenuStrip();
             menu.Items.Add("Abrir CClouder", null, (_, _) => ShowFromTray());
+            menu.Items.Add("Executar como administrador", null, (_, _) =>
+            {
+                try { Backend.RestartAsAdmin(); } catch (Exception ex) { Diag.Error("tray admin", ex); }
+            });
             menu.Items.Add("Limpeza headless agora", null, (_, _) =>
             {
                 try
@@ -98,14 +102,14 @@ window.chrome.webview.addEventListener('message', (e) => {
                         CreateNoWindow = true,
                     });
                 }
-                catch { }
+                catch (Exception ex) { Diag.Error("InitTray", ex); }
             });
             menu.Items.Add(new WinForms.ToolStripSeparator());
             menu.Items.Add("Sair", null, (_, _) => { _exiting = true; Close(); });
             _tray.ContextMenuStrip = menu;
             _tray.DoubleClick += (_, _) => ShowFromTray();
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("mainwindow/2", ex); }
     }
 
     private void ShowFromTray()
@@ -119,7 +123,7 @@ window.chrome.webview.addEventListener('message', (e) => {
     {
         Hide();
         try { _tray?.ShowBalloonTip(2500, "CClouder", "Rodando em segundo plano. Clique no ícone para abrir.", WinForms.ToolTipIcon.Info); }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("mainwindow/3", ex); }
     }
 
     protected override void OnStateChanged(EventArgs e)
@@ -142,7 +146,7 @@ window.chrome.webview.addEventListener('message', (e) => {
 
     protected override void OnClosed(EventArgs e)
     {
-        try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); } } catch { }
+        try { if (_tray != null) { _tray.Visible = false; _tray.Dispose(); } } catch (Exception ex) { Diag.Swallow("mainwindow/4", ex); }
         base.OnClosed(e);
     }
 
@@ -205,7 +209,7 @@ window.chrome.webview.addEventListener('message', (e) => {
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine("[WebView] Exception: " + ex);
+            Diag.Error("InitWebView", ex);
         }
     }
 
@@ -266,6 +270,14 @@ window.chrome.webview.addEventListener('message', (e) => {
                     Reply(req, Backend.BuildCategories());
                     break;
 
+                case "restart_as_admin":
+                    Reply(req, Backend.RestartAsAdmin());
+                    break;
+
+                case "get_diag_info":
+                    Reply(req, new { elevated = App.IsElevated(), log_dir = Diag.LogDir });
+                    break;
+
                 case "start_scan":
                 {
                     Reply(req, null); // result arrives via events
@@ -281,7 +293,7 @@ window.chrome.webview.addEventListener('message', (e) => {
                     {
                         try { await Backend.RunScan(tok => Emit("scan-progress", tok), ev => Emit("scan-complete", ev), selected, token); }
                         catch (OperationCanceledException) { }
-                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine("scan error: " + ex.Message); }
+                        catch (Exception ex) { Diag.Error("RunScan", ex); }
                     }, CancellationToken.None);
                     break;
                 }
@@ -649,7 +661,7 @@ window.chrome.webview.addEventListener('message', (e) => {
     {
         Dispatcher.InvokeAsync(() =>
         {
-            try { Web.CoreWebView2.PostWebMessageAsJson(json); } catch { }
+            try { Web.CoreWebView2.PostWebMessageAsJson(json); } catch (Exception ex) { Diag.Swallow("mainwindow/5", ex); }
         });
     }
 
@@ -662,7 +674,7 @@ window.chrome.webview.addEventListener('message', (e) => {
             string script = $"window.__TAURI_INTERNALS__.runCallback({id}, {payloadJson})";
             Dispatcher.InvokeAsync(async () =>
             {
-                try { await Web.CoreWebView2.ExecuteScriptAsync(script); } catch { }
+                try { await Web.CoreWebView2.ExecuteScriptAsync(script); } catch (Exception ex) { Diag.Swallow("mainwindow/6", ex); }
             });
         }
     }
@@ -680,6 +692,6 @@ window.chrome.webview.addEventListener('message', (e) => {
             int on = 1;
             DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("mainwindow/7", ex); }
     }
 }

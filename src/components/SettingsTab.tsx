@@ -291,24 +291,9 @@ export default function SettingsTab() {
               </SettingGroup>
 
               <SettingGroup title="Dados" icon={<Database className="w-5 h-5" />}>
-                <SettingItem
-                  label="Exportar configurações"
-                  description="Salva todas as configurações em um arquivo JSON"
-                >
-                  <button className="btn-secondary text-sm">Exportar</button>
-                </SettingItem>
-                <SettingItem
-                  label="Importar configurações"
-                  description="Carrega configurações de um arquivo JSON"
-                >
-                  <button className="btn-secondary text-sm">Importar</button>
-                </SettingItem>
-                <SettingItem
-                  label="Redefinir para padrões"
-                  description="Restaura todas as configurações aos valores de fábrica"
-                >
-                  <button className="btn-danger text-sm">Redefinir</button>
-                </SettingItem>
+                <p className="text-sm text-[var(--muted)] px-4">
+                  Suas configurações ficam em <code className="text-xs font-mono">%LOCALAPPDATA%\CClouder\settings.json</code>. Exportação e importação estarão disponíveis em uma versão futura.
+                </p>
               </SettingGroup>
             </SettingsSection>
           )}

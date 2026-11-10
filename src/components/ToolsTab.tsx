@@ -254,7 +254,7 @@ function ToolCard({ tool, onRun }: { tool: Tool; onRun: (tool: Tool) => void }) 
       <p className="text-sm text-[var(--muted)] flex-1">{tool.description}</p>
       <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
         <span className="text-xs text-[var(--muted)]">
-          {tool.danger ? 'Requer confirmação' : 'Clique para executar'}
+          {tool.danger ? 'Executável pelo próprio Windows (em breve aqui)' : 'Clique para executar'}
         </span>
         <span className="text-[var(--accent)] text-sm font-medium group-hover:translate-x-1 transition-transform">
           Executar →

@@ -43,7 +43,7 @@ public static partial class Backend
         var files = new List<string>();
         foreach (var f in EnumerateAllFiles(root))
         {
-            try { if (new FileInfo(f).Length == 0) files.Add(f); } catch { }
+            try { if (new FileInfo(f).Length == 0) files.Add(f); } catch (Exception ex) { Diag.Swallow("FileTools/#2", ex); }
         }
         return new { root, count = files.Count, files = files.Take(5000).ToList() };
     }
@@ -63,7 +63,7 @@ public static partial class Backend
                 if (fi.Length < minSize) continue;
                 collected.Add((f, fi.Length, fi.LastWriteTime));
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("FileTools/#3", ex); }
         }
         var top = collected
             .OrderByDescending(x => x.size)
@@ -201,7 +201,7 @@ public static partial class Backend
                 if (size == 0 && files == 0) return;
                 items.Add(new { id, name, path, size, count = files, kind = "files" });
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("FileTools/#3", ex); }
         }
 
         Add("npm", "npm cache", Path.Combine(roaming, "npm-cache"));
@@ -225,7 +225,7 @@ public static partial class Backend
             if (!string.IsNullOrWhiteSpace(df))
                 items.Add(new { id = "docker", name = "Docker (system prune)", path = "docker system df", size = (ulong)0, count = 0, kind = "docker", detail = df });
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("FileTools/#4", ex); }
 
         ulong total = items.Aggregate(0UL, (a, x) =>
         {

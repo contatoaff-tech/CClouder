@@ -55,7 +55,7 @@ export default function HealthCheckCard() {
     try {
       setResult(await invoke<HealthResult>('run_health_check'))
     } catch (e) {
-      setStatus('Erro: ' + e)
+      setStatus('Não foi possível corrigir. Tente executar como administrador.')
     } finally {
       setRunning(false)
     }
@@ -65,21 +65,19 @@ export default function HealthCheckCard() {
 
   const fixAll = async () => {
     if (!result) return
+    const fixable = result.scan.categories
+      .flatMap(c => c.items)
+      .filter(i => i.checked)
+    if (fixable.length === 0) { setStatus('Nada para corrigir'); return }
+    if (!window.confirm(`Corrigir ${fixable.length} item(ns)? Isso exclui arquivos e entradas de registro marcados (backup automático incluído).`)) return
     setFixing(true)
     setStatus(null)
     try {
-      const fixable = result.scan.categories
-        .flatMap(c => c.items)
-        .filter(i => i.checked)
-      if (fixable.length === 0) {
-        setStatus('Nada para corrigir')
-        return
-      }
       const r = await invoke<{ freed_bytes: number; freed_count: number; errors: string[] }>('clean_selected', { items: fixable })
       setStatus(`Corrigido: ${r.freed_count} itens, ${fmtBytes(r.freed_bytes)} liberados${r.errors.length ? ` · ${r.errors.length} pulados` : ''}`)
       await run()
     } catch (e) {
-      setStatus('Erro: ' + e)
+      setStatus('Não foi possível corrigir. Tente executar como administrador.')
     } finally {
       setFixing(false)
     }

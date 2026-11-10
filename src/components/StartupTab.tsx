@@ -181,12 +181,16 @@ function StartupRow({
           <button
             className="btn-ghost p-1.5"
             aria-label="Abrir localização do arquivo"
+            title="Abrir localização"
+            onClick={() => invoke('open_folder', { path: item.path }).catch(() => { })}
           >
             <FolderOpen className="w-4 h-4" />
           </button>
           <button
             className="btn-ghost p-1.5"
             aria-label="Pesquisar online"
+            title="Pesquisar online"
+            onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(item.name)}`, '_blank')}
           >
             <ExternalLink className="w-4 h-4" />
           </button>
@@ -224,13 +228,16 @@ function ScheduledTasksSection() {
   useEffect(() => { load() }, [load])
 
   const toggle = async (t: ScheduledTask) => {
+    const enable = t.state !== 'Disabled'
+    if (!enable && !window.confirm(`Desabilitar a tarefa agendada "${t.name}"?
+
+Tarefas de sistema (\Microsoft\) podem afetar atualizações e serviços do Windows. Você pode reabilitar depois.`)) return
     setBusy(t.tpath + t.name)
     try {
-      const enable = t.state !== 'Disabled'
       await invoke('toggle_scheduled_task', { tpath: t.tpath, name: t.name, enable: !enable })
       await load()
     } catch (e) {
-      alert(String(e))
+      window.alert('Não foi possível alterar a tarefa. Tente executar como administrador.')
     } finally {
       setBusy(null)
     }

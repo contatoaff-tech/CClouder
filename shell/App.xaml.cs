@@ -10,13 +10,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
+        Diag.Info($"início {Environment.ProcessPath ?? "?"} args=[{string.Join(' ', e.Args)}] user={Environment.UserName} elevated={IsElevated()}");
+
+        AppDomain.CurrentDomain.UnhandledException += (_, ev) =>
+            Diag.Error("UnhandledException", ev.ExceptionObject as Exception ?? new Exception(ev.ExceptionObject?.ToString()));
+
+        DispatcherUnhandledException += (_, ev) =>
         {
-            try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash.log"), $"[UnhandledException] {ev.ExceptionObject}\n"); } catch { }
-        };
-        DispatcherUnhandledException += (s, ev) =>
-        {
-            try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash.log"), $"[DispatcherException] {ev.Exception}\n"); } catch { }
+            Diag.Error("DispatcherUnhandledException", ev.Exception);
+            ev.Handled = false;
         };
 
         bool clean = e.Args.Any(a => a.Equals("--clean", StringComparison.OrdinalIgnoreCase));
@@ -30,7 +32,7 @@ public partial class App : System.Windows.Application
         _mutex = new Mutex(true, "CClouder.SingleInstance.v1", out bool created);
         if (!created)
         {
-            try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash.log"), "[Startup] Mutex already held by another instance. Exiting.\n"); } catch { }
+            Diag.Warn("segunda instância detectada; saindo");
             Shutdown(0);
             return;
         }
@@ -41,20 +43,37 @@ public partial class App : System.Windows.Application
         win.Show();
     }
 
+    internal static bool IsElevated()
+    {
+        try
+        {
+            var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch (Exception ex)
+        {
+            Diag.Swallow("IsElevated", ex);
+            return false;
+        }
+    }
+
     private static void RunHeadlessClean()
     {
         try
         {
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "CClouder", "logs");
+            string dir = Diag.LogDir;
             Directory.CreateDirectory(dir);
             string file = Path.Combine(dir, $"clean-{DateTime.Now:yyyyMMdd-HHmmss}.log");
             var lines = new List<string> { $"CClouder — limpeza headless em {DateTime.Now:yyyy-MM-dd HH:mm:ss}" };
             var (items, bytes, errors) = Backend.CleanHeadless(l => lines.Add(l));
             lines.Add($"TOTAL: {items} itens removidos, {bytes / (1024.0 * 1024.0):0.0} MB liberados, {errors} erros");
             File.WriteAllLines(file, lines);
+            Diag.Info($"limpeza headless: {items} itens, {errors} erros, log={file}");
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Diag.Error("RunHeadlessClean", ex);
+        }
     }
 }

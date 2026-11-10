@@ -61,14 +61,6 @@ export default function Header({ onAnalyzeDisk, analyzingDisk }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="hidden sm:flex items-center gap-1 bg-[var(--card)] border border-[var(--border)] rounded-lg p-1">
-          <button className="btn-ghost p-2" aria-label="Tema" title="Tema (breve)">
-            <Monitor className="w-4 h-4" />
-          </button>
-          <button className="btn-ghost p-2" aria-label="Atualizar" title="Verificar atualizações">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
         <div className="relative">
           <button
             className="btn-ghost p-2"
@@ -79,22 +71,17 @@ export default function Header({ onAnalyzeDisk, analyzingDisk }: HeaderProps) {
           </button>
           {showMenu && (
             <div className="absolute right-0 top-full mt-2 w-56 glass rounded-lg shadow-lg border border-[var(--border)] py-1 anim-fade-in">
-              <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--fg)]" onClick={() => setShowMenu(false)}>
+              <a href="https://github.com/contatoaff-tech/CClouder" target="_blank" rel="noopener noreferrer" className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--fg)]">
                 <Github className="w-4 h-4" />
                 GitHub
-              </button>
-              <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--fg)]" onClick={() => setShowMenu(false)}>
+              </a>
+              <a href="https://github.com/contatoaff-tech/CClouder/releases/latest" target="_blank" rel="noopener noreferrer" className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--fg)]">
                 <ExternalLink className="w-4 h-4" />
-                Site do Projeto
-              </button>
-              <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--fg)]" onClick={() => setShowMenu(false)}>
+                Releases
+              </a>
+              <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--fg)]" onClick={() => { setShowMenu(false); window.dispatchEvent(new CustomEvent('cclouder:open-settings')) }}>
                 <Info className="w-4 h-4" />
                 Sobre
-              </button>
-              <hr className="my-1 border-[var(--border)]" />
-              <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-[var(--card)] text-[var(--danger)]" onClick={() => setShowMenu(false)}>
-                <X className="w-4 h-4" />
-                Sair
               </button>
             </div>
           )}

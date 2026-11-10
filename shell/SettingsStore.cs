@@ -45,7 +45,7 @@ public static partial class Backend
                         result[p.Name] = p.Value.Clone();
                 }
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("SettingsStore/#4", ex); }
         }
         result["start_with_windows"] = IsStartWithWindows();
         result["schedule_enabled"] = ScheduleExists();
@@ -73,7 +73,7 @@ public static partial class Backend
                     dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(SettingsFile))
                            ?? new Dictionary<string, JsonElement>();
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("SettingsStore/#5", ex); }
             dict[key] = value.Clone();
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsFile)!);
             File.WriteAllText(SettingsFile, JsonSerializer.Serialize(dict));
@@ -90,7 +90,7 @@ public static partial class Backend
             if (doc.RootElement.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String)
                 return v.GetString() ?? fallback;
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("SettingsStore/#6", ex); }
         return fallback;
     }
 
@@ -104,7 +104,7 @@ public static partial class Backend
                 (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False))
                 return v.GetBoolean();
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("SettingsStore/#7", ex); }
         return fallback;
     }
 
@@ -177,7 +177,7 @@ public static partial class Backend
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("SettingsStore/#8", ex); }
         return new { exists, next_run = next, task_name = TaskName };
     }
 
@@ -185,7 +185,7 @@ public static partial class Backend
     {
         if (!enable)
         {
-            try { RunCaptured("schtasks", $"/delete /tn \"{TaskName}\" /f", 30000); } catch { }
+            try { RunCaptured("schtasks", $"/delete /tn \"{TaskName}\" /f", 30000); } catch (Exception ex) { Diag.Swallow("SettingsStore/#9", ex); }
             return new { ok = true, enabled = false };
         }
 

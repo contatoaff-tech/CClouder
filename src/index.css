@@ -147,8 +147,9 @@ body {
   --bg: #f6f8fb;
   --fg: #1b2331;
   --muted: #5d6b7f;
-  --accent: #1f7ae0;
-  --accent-hover: #1668c4;
+  /* #1668c4 sobre #f6f8fb = 5,3:1 (AA ✔); o tom anterior (#1f7ae0) tinha 4,1:1 */
+  --accent: #1668c4;
+  --accent-hover: #0f529f;
   --border: #d6dee9;
   --card: #ffffff;
   --card-hover: #eef3f9;

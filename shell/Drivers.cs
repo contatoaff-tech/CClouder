@@ -147,7 +147,7 @@ public static partial class Backend
                 p.WaitForExit(30000);
                 systemRestore = o.Contains("True", StringComparison.OrdinalIgnoreCase);
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Drivers/#1", ex); }
         }
         // Averiguação do System Restore: valor 'RPSessionInterval'/'DisableSR' nas políticas
         try
@@ -161,7 +161,7 @@ public static partial class Backend
                 : "disponível";
             if (!disabledByPolicy && admin) systemRestore = true;
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Drivers/#2", ex); }
 
         return new
         {
@@ -239,7 +239,7 @@ public static partial class Backend
                 list.Add(new { id, name, code, status, description = desc });
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Drivers/#3", ex); }
         return list;
     }
 
@@ -261,7 +261,7 @@ public static partial class Backend
                 vcx64Ver = k.GetValue("Version") as string ?? "";
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Drivers/#4", ex); }
         runtimes.Add(new
         {
             id = "vcredist_x64",
@@ -285,7 +285,7 @@ public static partial class Backend
                 vcx86Ver = k.GetValue("Version") as string ?? "";
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Drivers/#5", ex); }
         runtimes.Add(new
         {
             id = "vcredist_x86",
@@ -309,7 +309,7 @@ public static partial class Backend
                 dxVer = k.GetValue("Version") as string ?? "9.0c / June 2010";
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Drivers/#6", ex); }
         runtimes.Add(new
         {
             id = "directx",
@@ -337,7 +337,7 @@ public static partial class Backend
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Drivers/#7", ex); }
         runtimes.Add(new
         {
             id = "dotnet_desktop_8",

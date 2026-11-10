@@ -1,4 +1,5 @@
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { ChevronDown, ChevronUp, CheckSquare, Square, MinusSquare, Trash2, Sparkles, FolderOpen, Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import HealthCheckCard from './HealthCheckCard'
 
@@ -29,6 +30,7 @@ interface CleanerTabProps {
   onClean: () => void
   totalSelected: number
   totalSize: number
+  totalItems: number
   formatBytes: (bytes: number) => string
   formatNumber: (num: number) => string
 }
@@ -50,12 +52,12 @@ export default function CleanerTab({
   onClean,
   totalSelected,
   totalSize,
+  totalItems,
   formatBytes,
   formatNumber
 }: CleanerTabProps) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(
-    Object.fromEntries(categories.map(c => [c.id, true]))
-  )
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const isExpanded = (id: string) => expanded[id] ?? true
 
   const allChecked = categories.length > 0 && categories.every(c => c.items.every(i => i.checked))
   const someChecked = categories.some(c => c.items.some(i => i.checked))
@@ -104,7 +106,7 @@ export default function CleanerTab({
             <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-[var(--accent)] rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(100, (totalSize / 1024 / 1024 / 1024) * 100)}%` }}
+                style={{ width: `${Math.min(100, (totalSelected / Math.max(1, totalItems)) * 100)}%` }}
               />
             </div>
           </div>
@@ -121,7 +123,7 @@ export default function CleanerTab({
             key={cat.id}
             category={cat}
             icon={categoryIcons[cat.id] || <Sparkles className="w-5 h-5" />}
-            expanded={expanded[cat.id]}
+            expanded={isExpanded(cat.id)}
             onToggleExpand={() => setExpanded(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
             onToggleItem={onToggleItem}
             formatBytes={formatBytes}
@@ -179,12 +181,14 @@ function CategorySection({
               <input
                 type="checkbox"
                 checked={category.checked}
-                onChange={() => {
-                const checked = category.items.some(i => !i.checked)
-                category.items.forEach(i => {
-                  if (i.checked !== checked) onToggleItem(category.id, i.id)
-                })
-              }}
+                onClick={e => e.stopPropagation()}
+                onChange={e => {
+                  e.stopPropagation()
+                  const checked = category.items.some(i => !i.checked)
+                  category.items.forEach(i => {
+                    if (i.checked !== checked) onToggleItem(category.id, i.id)
+                  })
+                }}
                 className="w-4 h-4 accent-[var(--accent)] rounded border-[var(--border)] bg-[var(--card)]"
                 aria-label={category.checked ? `Desmarcar ${category.name}` : `Marcar ${category.name}`}
               />
@@ -256,10 +260,12 @@ function ItemRow({
         <span>{formatNumber(item.count)}</span>
         <span>{formatBytes(item.size)}</span>
       </div>
-      {hovered && item.size > 0 && (
+      {hovered && item.size > 0 && item.path && !item.path.includes('*') && (
         <button
-          className="btn-ghost p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-          aria-label="Abrir pasta"
+          onClick={() => invoke('open_folder', { path: item.path }).catch(() => { })}
+          className="btn-ghost p-1.5 transition-opacity"
+          aria-label={`Abrir pasta de ${item.name}`}
+          title="Abrir pasta"
         >
           <FolderOpen className="w-4 h-4" />
         </button>
@@ -267,5 +273,3 @@ function ItemRow({
     </div>
   )
 }
-
-import { useState } from 'react'

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import {
   Files, Search, Trash2, Flame, Loader2, CheckSquare, Square,
@@ -35,7 +35,7 @@ const MODES: { id: Mode; label: string; icon: React.ReactNode; hint: string }[] 
 
 export default function FilesTab() {
   const [mode, setMode] = useState<Mode>('duplicates')
-  const [root, setRoot] = useState('C:\\Users\\felip')
+  const [root, setRoot] = useState('')
   const [dupMin, setDupMin] = useState(1048576)
   const [threshold, setThreshold] = useState(5)
   const [bigMin, setBigMin] = useState(10485760)
@@ -43,6 +43,16 @@ export default function FilesTab() {
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null)
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    invoke<Record<string, unknown>>('get_diag_info').then(info => {
+      if (typeof info.log_dir === 'string') {
+        const dir = info.log_dir as string
+        const idx = dir.indexOf('\\CClouder\\logs')
+        if (idx > 0) setRoot(dir.slice(0, idx))
+      }
+    }).catch(() => { })
+  }, [])
 
   const [dup, setDup] = useState<DupResult | null>(null)
   const [similar, setSimilar] = useState<SimilarResult | null>(null)

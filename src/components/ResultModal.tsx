@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { CheckCircle, XCircle, AlertTriangle, Trash2, HardDrive, Loader2 } from 'lucide-react'
 
 interface CleanResult {
@@ -27,6 +27,12 @@ function formatNumber(num: number): string {
 }
 
 export default function ResultModal({ result, onClose, formatBytes, formatNumber }: ResultModalProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const hasErrors = result.errors.length > 0
   const success = result.freed_count > 0 || result.freed_bytes > 0
 
@@ -85,7 +91,7 @@ export default function ResultModal({ result, onClose, formatBytes, formatNumber
               {result.errors.slice(0, 5).map((error, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span className="truncate">{error}</span>
+                  <span className="truncate" title={error}>{error}</span>
                 </li>
               ))}
               {result.errors.length > 5 && (

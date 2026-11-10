@@ -17,6 +17,7 @@ import SettingsTab from './components/SettingsTab'
 import ScanProgressModal from './components/ScanProgressModal'
 import ResultModal from './components/ResultModal'
 import toast from './components/Toast'
+import ConfirmDialog from './components/ConfirmDialog'
 
 interface CleanCategory {
   id: string
@@ -119,6 +120,8 @@ export default function App() {
   const [diskAnalysis, setDiskAnalysis] = useState<DiskAnalysis | null>(null)
   const [analyzingDisk, setAnalyzingDisk] = useState(false)
   const [toasts, setToasts] = useState<Array<{id: number, message: string, type: 'success' | 'error' | 'info'}>>([])
+  const [confirmDelete, setConfirmDelete] = useState(true)
+  const [pendingClean, setPendingClean] = useState<{ items: CleanItem[] } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now()
@@ -176,10 +179,17 @@ export default function App() {
   }, [loadCategories])
 
   useEffect(() => {
+    const openSettings = () => setActiveTab('settings')
+    window.addEventListener('cclouder:open-settings', openSettings)
+    return () => window.removeEventListener('cclouder:open-settings', openSettings)
+  }, [])
+
+  useEffect(() => {
     invoke<Record<string, unknown>>('get_settings').then(s => {
       const t = typeof s.theme === 'string' ? s.theme : 'dark'
       if (t === 'system') delete document.documentElement.dataset.theme
       else document.documentElement.dataset.theme = t
+      if (typeof s.confirm_delete === 'boolean') setConfirmDelete(s.confirm_delete)
     }).catch(() => { })
   }, [])
 
@@ -214,13 +224,8 @@ export default function App() {
     }
   }
 
-  const handleClean = async () => {
-    if (!scanResult) return
-    const items = scanResult.categories.flatMap(c => c.items.filter(i => i.checked))
-    if (items.length === 0) {
-      showToast('Nenhum item selecionado para limpeza', 'error')
-      return
-    }
+  const runClean = async (items: CleanItem[]) => {
+    setPendingClean(null)
     setCleaning(true)
     try {
       const result = await invoke<CleanResult>('clean_selected', { items })
@@ -231,12 +236,29 @@ export default function App() {
       } else {
         showToast(`Limpeza concluída: ${formatNumber(result.freed_count)} arquivos, ${formatBytes(result.freed_bytes)} liberados`, 'success')
       }
-      await handleScan()
+      // Re-escaneia após fechar o modal de resultado (antes cobria o resultado).
     } catch (e) {
-      showToast('Erro na limpeza: ' + e, 'error')
+      showToast('Não foi possível concluir a limpeza. Tente novamente ou execute como administrador.', 'error')
     } finally {
       setCleaning(false)
     }
+  }
+
+  const handleClean = async () => {
+    if (!scanResult) {
+      showToast('Execute uma análise antes de limpar', 'info')
+      return
+    }
+    const items = scanResult.categories.flatMap(c => c.items.filter(i => i.checked))
+    if (items.length === 0) {
+      showToast('Nenhum item selecionado para limpeza', 'error')
+      return
+    }
+    if (confirmDelete) {
+      setPendingClean({ items })
+      return
+    }
+    await runClean(items)
   }
 
   const handleToggleCategory = (id: string) => {
@@ -321,6 +343,10 @@ export default function App() {
   const getTotalSelected = () =>
     getActiveCategories().flatMap(c => c.items.filter(i => i.checked)).length
 
+  const getTotalItems = () =>
+    (scanResult?.categories || categories)
+      .filter(c => c.id !== 'registry')
+      .reduce((a, c) => a + c.items.length, 0)
   const getTotalSize = () =>
     getActiveCategories().flatMap(c => c.items.filter(i => i.checked)).reduce((a, i) => a + i.size, 0)
 
@@ -350,6 +376,7 @@ export default function App() {
               onClean={handleClean}
               totalSelected={getTotalSelected()}
               totalSize={getTotalSize()}
+              totalItems={getTotalItems()}
               formatBytes={formatBytes}
               formatNumber={formatNumber}
             />
@@ -360,6 +387,7 @@ export default function App() {
           {activeTab === 'registry' && (
             <RegistryTab
               categories={(scanResult?.categories || categories).filter(c => c.id === 'registry')}
+              onOpenFolder={handleOpenFolder}
               onToggleItem={handleToggleItem}
               onSelectAll={handleSelectAll}
               scanning={scanning}
@@ -411,11 +439,25 @@ export default function App() {
       {showResultModal && cleanResult && (
         <ResultModal
           result={cleanResult}
-          onClose={() => { setShowResultModal(false); setCleanResult(null) }}
+          onClose={() => {
+            setShowResultModal(false)
+            setCleanResult(null)
+            handleScan()
+          }}
           formatBytes={formatBytes}
           formatNumber={formatNumber}
         />
       )}
+      <ConfirmDialog
+        open={pendingClean !== null}
+        title="Confirmar limpeza"
+        description={`Isso excluirá ${pendingClean ? pendingClean.items.length : 0} item(ns) marcados. Arquivos em uso serão mantidos.`}
+        confirmLabel="Limpar agora"
+        danger
+        details={pendingClean ? Array.from(new Set(pendingClean.items.map(i => i.name))).slice(0, 8) : undefined}
+        onConfirm={() => pendingClean && runClean(pendingClean.items)}
+        onCancel={() => setPendingClean(null)}
+      />
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
         {toasts.map(t => (
           <div key={t.id} className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg glass animate-slide-up ${t.type === 'success' ? 'border-l-4 border-[var(--success)]' : t.type === 'error' ? 'border-l-4 border-[var(--danger)]' : 'border-l-4 border-[var(--accent)]'}`}>

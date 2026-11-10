@@ -15,22 +15,6 @@ public static partial class Backend
 {
     // ============================ SOFTWARES (winget) ============================
 
-    static string RunCaptured(string exe, string args, int timeoutMs)
-    {
-        var psi = new ProcessStartInfo(exe, args)
-        {
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = System.Text.Encoding.UTF8,
-        };
-        using var p = Process.Start(psi) ?? throw new Exception($"não foi possível iniciar {exe}");
-        string outp = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(timeoutMs);
-        return outp;
-    }
-
     public static object GetSoftwareUpdates()
     {
         string ver;
@@ -105,7 +89,7 @@ public static partial class Backend
         var t1 = new Dictionary<int, TimeSpan>();
         foreach (var p in procs)
         {
-            try { t1[p.Id] = p.TotalProcessorTime; } catch { }
+            try { t1[p.Id] = p.TotalProcessorTime; } catch (Exception ex) { Diag.Swallow("Updates/#3", ex); }
         }
         Thread.Sleep(400);
         var list = new List<(string name, int pid, ulong ws, double cpu)>();
@@ -122,7 +106,7 @@ public static partial class Backend
                 }
                 list.Add((p.ProcessName, p.Id, ws, cpu));
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Updates/#4", ex); }
         }
         var ordered = list
             .OrderByDescending(x => x.ws)
@@ -153,10 +137,10 @@ public static partial class Backend
                 before += ws;
                 if (EmptyWorkingSet(h)) count++;
                 try { p.Refresh(); after += (ulong)p.WorkingSet64; }
-                catch { after += ws; }
+                catch (Exception ex) { Diag.Swallow("Updates/#5", ex); after += ws; }
                 CloseHandle(h);
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Updates/#6", ex); }
         }
         ulong freed = before > after ? before - after : 0;
         return new { processes = count, freed_bytes = freed };
@@ -308,9 +292,9 @@ public static partial class Backend
         }
         catch
         {
-            try { if (File.Exists(downloadPath)) File.Delete(downloadPath); } catch { }
-            try { if (File.Exists(candidatePath)) File.Delete(candidatePath); } catch { }
-            try { if (File.Exists(scriptPath)) File.Delete(scriptPath); } catch { }
+            try { if (File.Exists(downloadPath)) File.Delete(downloadPath); } catch (Exception ex) { Diag.Swallow("Updates/#4", ex); }
+            try { if (File.Exists(candidatePath)) File.Delete(candidatePath); } catch (Exception ex) { Diag.Swallow("Updates/#5", ex); }
+            try { if (File.Exists(scriptPath)) File.Delete(scriptPath); } catch (Exception ex) { Diag.Swallow("Updates/#6", ex); }
             throw;
         }
     }

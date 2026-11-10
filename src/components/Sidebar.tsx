@@ -105,7 +105,7 @@ export default function Sidebar({
               className="text-xs text-[var(--accent)] hover:underline"
               aria-label={allChecked ? 'Desmarcar todas' : 'Marcar todas'}
             >
-              {allChecked ? 'Desmarcar todas' : someChecked ? 'Marcar todas' : 'Selecionar todas'}
+              {allChecked ? 'Desmarcar todas' : 'Marcar todas'}
             </button>
           </div>
 

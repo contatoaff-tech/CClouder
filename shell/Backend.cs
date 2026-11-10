@@ -153,7 +153,7 @@ public static partial class Backend
                 if (Directory.Exists(candidate) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) == 0)
                     profileDirs.Add(candidate);
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Backend/#1", ex); }
         }
 
         // Firefox keeps profile locations in profiles.ini; cache2 itself is the
@@ -194,7 +194,7 @@ public static partial class Backend
                 AddCurrentProfile();
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#2", ex); }
 
         // Also discover profiles when profiles.ini is absent or incomplete.
         foreach (string root in new[]
@@ -209,7 +209,7 @@ public static partial class Backend
                     foreach (string profile in Directory.EnumerateDirectories(root))
                         AddProfile(profile, relative: false);
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Backend/#3", ex); }
         }
 
         var caches = new List<string>();
@@ -222,7 +222,7 @@ public static partial class Backend
                 if ((File.GetAttributes(cache) & FileAttributes.ReparsePoint) != 0) continue;
                 caches.Add(cache);
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Backend/#4", ex); }
         }
         return caches;
     }
@@ -270,7 +270,7 @@ public static partial class Backend
         {
             ct.ThrowIfCancellationRequested();
             var cat = cats[i];
-            onProgress(new { current_category = cat.name, progress = (double)i / total, found_size = totalSize, found_count = totalCount });
+            onProgress(new { current_category = cat.name, category_id = cat.id, progress = (double)i / total, found_size = totalSize, found_count = totalCount });
             foreach (var item in cat.items)
             {
                 ct.ThrowIfCancellationRequested();
@@ -312,7 +312,7 @@ public static partial class Backend
                 return (size, count);
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#7", ex); }
         return (0, 0);
     }
 
@@ -326,7 +326,7 @@ public static partial class Backend
             size += (ulong)fi.Length;
             count++;
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#8", ex); }
     }
 
     static void Walk(string dir, DateTime? cutoff, ref ulong size, ref int count)
@@ -341,7 +341,7 @@ public static partial class Backend
                 Walk(d, cutoff, ref size, ref count);
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#9", ex); }
     }
 
     // ============================ LIMPEZA DE ARQUIVOS ============================
@@ -415,7 +415,7 @@ public static partial class Backend
             if (File.Exists(path)) { DeleteFile(path, null, ref freed, ref count); return (freed, count); }
             if (Directory.Exists(path)) { CleanWalk(path, cutoff, ref freed, ref count); return (freed, count); }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#11", ex); }
         return (freed, count);
     }
 
@@ -431,7 +431,7 @@ public static partial class Backend
             freed += len;
             count++;
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#12", ex); }
     }
 
     internal static void CleanWalk(string dir, DateTime? cutoff, ref ulong freed, ref int count)
@@ -444,10 +444,10 @@ public static partial class Backend
             {
                 if (IsExcluded(d) || (File.GetAttributes(d) & FileAttributes.ReparsePoint) != 0) continue;
                 CleanWalk(d, cutoff, ref freed, ref count);
-                try { Directory.Delete(d, false); } catch { }
+                try { Directory.Delete(d, false); } catch (Exception ex) { Diag.Swallow("Backend/#13", ex); }
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#14", ex); }
     }
 
     static void FlushDns()
@@ -458,7 +458,7 @@ public static partial class Backend
             using var p = Process.Start(psi);
             p?.WaitForExit(5000);
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#12", ex); }
     }
 
     // ============================ REGISTRO ============================
@@ -532,7 +532,7 @@ public static partial class Backend
             string file = Path.Combine(dir, $"backup-{DateTime.Now:yyyyMMdd-HHmmss}-{id}.json");
             File.WriteAllText(file, JsonSerializer.Serialize(entries));
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#13", ex); }
     }
 
     static string FullName(RegBase b, string sub) => $@"{b.Label}\{b.Path}\{sub}";
@@ -559,7 +559,7 @@ public static partial class Backend
         foreach (var name in names)
         {
             backups.Add(new { key = $@"HKLM\{SharedDllsPath}", name, data = k.GetValue(name), kind = SafeKind(k, name) });
-            try { k.DeleteValue(name, false); n++; } catch { }
+            try { k.DeleteValue(name, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#14", ex); }
         }
         SaveBackup("reg_shared", backups);
         return S(n);
@@ -588,7 +588,7 @@ public static partial class Backend
                     bool locMissing = string.IsNullOrWhiteSpace(loc) || !Directory.Exists(ExpandEnv(loc.Trim('"', ' ')));
                     if (locMissing) result.Add((b, sub));
                 }
-                catch { }
+                catch (Exception ex) { Diag.Swallow("Backend/#15", ex); }
             }
         }
         return result;
@@ -618,7 +618,7 @@ public static partial class Backend
                 ?? throw new Exception("acesso negado ao registro (execute como administrador)");
             foreach (var o in g)
             {
-                try { parent.DeleteSubKeyTree(o.sub, false); n++; } catch { }
+                try { parent.DeleteSubKeyTree(o.sub, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#16", ex); }
             }
         }
         return S(n);
@@ -653,7 +653,7 @@ public static partial class Backend
                 if (IsApprovedShellExtension(sub)) continue;
                 result.Add(sub);
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Backend/#17", ex); }
         }
         return result;
     }
@@ -680,7 +680,7 @@ public static partial class Backend
         {
             foreach (var s in names)
             {
-                try { k.DeleteSubKeyTree(s, false); n++; } catch { }
+                try { k.DeleteSubKeyTree(s, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#18", ex); }
             }
         }
         return S(n);
@@ -724,7 +724,7 @@ public static partial class Backend
                 if (openWithList != null && openWithList.GetValueNames().Length > 0) return true;
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#21", ex); }
         return false;
     }
 
@@ -745,7 +745,7 @@ public static partial class Backend
                 result.Add(e);
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#22", ex); }
         return result;
     }
 
@@ -765,7 +765,7 @@ public static partial class Backend
         int n = 0;
         foreach (var s in names)
         {
-            try { Registry.ClassesRoot.DeleteSubKeyTree(s, false); n++; } catch { }
+            try { Registry.ClassesRoot.DeleteSubKeyTree(s, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#23", ex); }
         }
         return S(n);
     }
@@ -792,7 +792,7 @@ public static partial class Backend
         foreach (var name in names)
         {
             backups.Add(new { key = $@"HKCU\{RunMruPath}", name, data = k.GetValue(name), kind = SafeKind(k, name) });
-            try { k.DeleteValue(name, false); n++; } catch { }
+            try { k.DeleteValue(name, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#22", ex); }
         }
         SaveBackup("reg_mru", backups);
         return S(n);
@@ -828,7 +828,7 @@ public static partial class Backend
         foreach (var name in names)
         {
             backups.Add(new { key = $@"HKLM\{FontsPath}", name, data = k.GetValue(name), kind = SafeKind(k, name) });
-            try { k.DeleteValue(name, false); n++; } catch { }
+            try { k.DeleteValue(name, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#23", ex); }
         }
         SaveBackup("reg_fonts", backups);
         return S(n);
@@ -876,7 +876,7 @@ public static partial class Backend
         {
             foreach (var s in names)
             {
-                try { k.DeleteSubKeyTree(s, false); n++; } catch { }
+                try { k.DeleteSubKeyTree(s, false); n++; } catch (Exception ex) { Diag.Swallow("Backend/#24", ex); }
             }
         }
         return S(n);
@@ -903,10 +903,10 @@ public static partial class Backend
             if (created == null) return;
             foreach (var name in old.GetValueNames())
             {
-                try { created.SetValue(name, old.GetValue(name) as string ?? ""); } catch { }
+                try { created.SetValue(name, old.GetValue(name) as string ?? ""); } catch (Exception ex) { Diag.Swallow("Backend/#26", ex); }
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("EnsureStoreMigration", ex); }
     }
 
     static List<StartupEntry> CollectStartupItems()
@@ -1049,7 +1049,7 @@ public static partial class Backend
                     string uninstall = sk.GetValue("UninstallString") as string ?? "";
                     list.Add(new { name, version, publisher, install_date = installDate, size, uninstall_string = uninstall });
                 }
-                catch { }
+                catch (Exception ex) { Diag.Swallow("Backend/#27", ex); }
             }
         }
         return list;
@@ -1091,7 +1091,38 @@ public static partial class Backend
                 (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
                 Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("OpenUrl " + url, ex); }
+    }
+
+    /// <summary>Reabre o CClouder com elevação (UAC). Retorna true se o UAC foi aceito.</summary>
+    public static object RestartAsAdmin()
+    {
+        string exe = Environment.ProcessPath ?? "";
+        if (!exe.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            throw new Exception("disponível apenas no executável publicado");
+        if (App.IsElevated()) return new { ok = true, already_admin = true };
+
+        try
+        {
+            var psi = new ProcessStartInfo(exe)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            };
+            Process.Start(psi);
+            Diag.Info("reabrindo com elevação");
+            return new { ok = true, already_admin = false };
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // 1223 = ERROR_CANCELLED: o usuário recusou o UAC.
+            return new { ok = false, cancelled = true };
+        }
+        catch (Exception ex)
+        {
+            Diag.Error("RestartAsAdmin", ex);
+            throw new Exception("não foi possível reabrir como administrador: " + ex.Message);
+        }
     }
 
     public static void OpenPath(string p)
@@ -1103,7 +1134,7 @@ public static partial class Backend
             else
                 Process.Start(new ProcessStartInfo(p) { UseShellExecute = true });
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Backend/#28", ex); }
     }
 
     public static object AnalyzeDisk(string path)

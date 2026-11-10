@@ -50,7 +50,7 @@ public static partial class Backend
                 if (arr != null) _exclusions.AddRange(arr.Where(s => !string.IsNullOrWhiteSpace(s)));
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Tools/#2", ex); }
         _exclusionsLoaded = true;
     }
 
@@ -61,7 +61,7 @@ public static partial class Backend
             Directory.CreateDirectory(Path.GetDirectoryName(ExclusionsFile)!);
             File.WriteAllText(ExclusionsFile, JsonSerializer.Serialize(_exclusions));
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Tools/#3", ex); }
     }
 
     public static object AddExclusion(string path)
@@ -114,7 +114,7 @@ public static partial class Backend
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Tools/#3", ex); }
         return false;
     }
 
@@ -154,7 +154,7 @@ public static partial class Backend
                 scanned++;
                 totalBytes += (ulong)fi.Length;
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Tools/#5", ex); }
         }
 
         // filtro rápido: hash parcial (primeiro + último 64KB) por grupo de tamanho
@@ -212,42 +212,6 @@ public static partial class Backend
         };
     }
 
-    static IEnumerable<string> EnumerateAllFiles(string root)
-    {
-        var stack = new Stack<string>();
-        stack.Push(root);
-        while (stack.Count > 0)
-        {
-            string dir = stack.Pop();
-            bool safeDirectory;
-            try { safeDirectory = !IsExcluded(dir) && (File.GetAttributes(dir) & FileAttributes.ReparsePoint) == 0; }
-            catch { continue; }
-            if (!safeDirectory) continue;
-
-            string[] files;
-            try { files = Directory.GetFiles(dir); } catch { files = Array.Empty<string>(); }
-            foreach (var f in files)
-            {
-                bool safeFile;
-                try { safeFile = !IsExcluded(f) && (File.GetAttributes(f) & FileAttributes.ReparsePoint) == 0; }
-                catch { continue; }
-                if (safeFile) yield return f;
-            }
-
-            string[] directories;
-            try { directories = Directory.GetDirectories(dir); } catch { directories = Array.Empty<string>(); }
-            foreach (var d in directories)
-            {
-                try
-                {
-                    if (!IsExcluded(d) && (File.GetAttributes(d) & FileAttributes.ReparsePoint) == 0)
-                        stack.Push(d);
-                }
-                catch { }
-            }
-        }
-    }
-
     static string? PartialHash(string path)
     {
         try
@@ -278,6 +242,42 @@ public static partial class Backend
             return Convert.ToHexString(SHA256.HashData(fs));
         }
         catch { return null; }
+    }
+
+    static IEnumerable<string> EnumerateAllFiles(string root)
+    {
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            string dir = stack.Pop();
+            bool safeDirectory;
+            try { safeDirectory = !IsExcluded(dir) && (File.GetAttributes(dir) & FileAttributes.ReparsePoint) == 0; }
+            catch { continue; }
+            if (!safeDirectory) continue;
+
+            string[] files;
+            try { files = Directory.GetFiles(dir); } catch (Exception ex) { Diag.Swallow("Tools/#14", ex); files = Array.Empty<string>(); }
+            foreach (var f in files)
+            {
+                bool safeFile;
+                try { safeFile = !IsExcluded(f) && (File.GetAttributes(f) & FileAttributes.ReparsePoint) == 0; }
+                catch { continue; }
+                if (safeFile) yield return f;
+            }
+
+            string[] directories;
+            try { directories = Directory.GetDirectories(dir); } catch (Exception ex) { Diag.Swallow("Tools/#15", ex); directories = Array.Empty<string>(); }
+            foreach (var d in directories)
+            {
+                try
+                {
+                    if (!IsExcluded(d) && (File.GetAttributes(d) & FileAttributes.ReparsePoint) == 0)
+                        stack.Push(d);
+                }
+                catch { }
+            }
+        }
     }
 
     // ============================ SHREDDER ============================
@@ -545,18 +545,10 @@ public static partial class Backend
 
     static string RunPowerShell(string command, int timeoutMs)
     {
-        var psi = new ProcessStartInfo("powershell.exe",
-            "-NoProfile -ExecutionPolicy Bypass -Command \"" + command.Replace("\"", "\\\"") + "\"")
-        {
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        using var p = Process.Start(psi) ?? throw new Exception("não foi possível iniciar o PowerShell");
-        string output = p.StandardOutput.ReadToEnd();
-        string err = p.StandardError.ReadToEnd();
-        p.WaitForExit(timeoutMs);
+        // Executa via -EncodedCommand para não depender de escaping de aspas.
+        string encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(command));
+        var (output, err, _, timedOut) = RunCapturedEx("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded}", timeoutMs);
+        if (timedOut) throw new Exception($"PowerShell não respondeu em {timeoutMs / 1000}s");
         if (!string.IsNullOrWhiteSpace(err) && string.IsNullOrWhiteSpace(output))
             throw new Exception(err.Trim());
         return output.Trim();
@@ -665,9 +657,9 @@ public static partial class Backend
                         modified++;
                     }
                 }
-                catch { }
+                catch (Exception ex) { Diag.Swallow("Tools/#9", ex); }
             }
-            try { OptimizeMemory(); } catch { }
+            try { OptimizeMemory(); } catch (Exception ex) { Diag.Swallow("Tools/#16", ex); }
             _turboBoostActive = true;
         }
         else
@@ -681,7 +673,7 @@ public static partial class Backend
                         RunPowerShell($"Start-Service -Name '{kvp.Key}' -ErrorAction SilentlyContinue", 10000);
                         modified++;
                     }
-                    catch { }
+                    catch (Exception ex) { Diag.Swallow("Tools/#17", ex); }
                 }
             }
             _turboPreviousState.Clear();
@@ -699,7 +691,7 @@ public static partial class Backend
 
         void AddIfExists(Environment.SpecialFolder f)
         {
-            try { var p = Environment.GetFolderPath(f); if (Directory.Exists(p)) folders.Add(p); } catch { }
+            try { var p = Environment.GetFolderPath(f); if (Directory.Exists(p)) folders.Add(p); } catch (Exception ex) { Diag.Swallow("Tools/#18", ex); }
         }
 
         AddIfExists(Environment.SpecialFolder.Desktop);
@@ -714,7 +706,7 @@ public static partial class Backend
             var commonPrograms = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), @"Microsoft\Windows\Start Menu\Programs");
             if (Directory.Exists(commonPrograms)) folders.Add(commonPrograms);
         }
-        catch { }
+        catch (Exception ex) { Diag.Swallow("Tools/#10", ex); }
 
         Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
         if (shellType == null) return list;
@@ -753,10 +745,10 @@ public static partial class Backend
                             });
                         }
                     }
-                    catch { }
+                    catch (Exception ex) { Diag.Swallow("Tools/#12", ex); }
                 }
             }
-            catch { }
+            catch (Exception ex) { Diag.Swallow("Tools/#13", ex); }
         }
 
         return list;
