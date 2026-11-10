@@ -154,8 +154,36 @@ window.chrome.webview.addEventListener('message', (e) => {
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "CClouder", "WebView2Data");
             try { Directory.CreateDirectory(udata); } catch { udata = Path.Combine(Path.GetTempPath(), "CClouder_WebView2"); Directory.CreateDirectory(udata); }
-            var env = await CoreWebView2Environment.CreateAsync(null, udata);
+            var options = new CoreWebView2EnvironmentOptions
+            {
+                AreBrowserExtensionsEnabled = false,
+                IsCustomCrashReportingEnabled = false,
+            };
+            var env = await CoreWebView2Environment.CreateAsync(null, udata, options);
             await Web.EnsureCoreWebView2Async(env);
+            var core = Web.CoreWebView2;
+
+            // Superfície mínima: nenhuma permissão de dispositivo, download ou DevTools.
+            core.Settings.AreDevToolsEnabled = false;
+            core.Settings.AreDefaultContextMenusEnabled = false;
+            core.Settings.AreHostObjectsAllowed = false;
+            core.Settings.IsStatusBarEnabled = false;
+            core.Settings.IsZoomControlEnabled = false;
+            core.Settings.IsPasswordAutosaveEnabled = false;
+            core.Settings.IsGeneralAutofillEnabled = false;
+            core.Settings.IsSwipeNavigationEnabled = false;
+
+            core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
+            core.DownloadStarting += (_, e) => e.Cancel = true;
+            // Links externos (GitHub/releases) abrem no navegador padrão, nunca dentro do app.
+            core.NewWindowRequested += (_, e) =>
+            {
+                e.Handled = true;
+                if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var target) &&
+                    (target.Scheme == Uri.UriSchemeHttps || target.Scheme == Uri.UriSchemeHttp))
+                    Backend.OpenUrl(target.AbsoluteUri);
+            };
+
             Web.CoreWebView2.WebMessageReceived += OnWebMessage;
             Web.CoreWebView2.FrameCreated += (_, e) =>
             {

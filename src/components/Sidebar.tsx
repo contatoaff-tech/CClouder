@@ -169,7 +169,7 @@ export default function Sidebar({
 
       <div className="p-3 border-t border-[var(--border)]">
         <div className="text-xs text-[var(--muted)] text-center">
-          CClouder v1.7.0 — MIT License
+          CClouder v{__APP_VERSION__} — MIT License
         </div>
       </div>
     </aside>

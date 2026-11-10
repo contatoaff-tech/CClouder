@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências do frontend
+        run: npm ci
+
+      - name: Compilar frontend (tsc + vite)
+        run: npm run build
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Compilar shell nativo
+        run: dotnet build shell/CClouder.csproj -c Release
+
+      - name: Testes do backend
+        run: dotnet test tests/CClouder.Tests/CClouder.Tests.csproj -c Release --logger "console;verbosity=normal"
+
+      - name: Publicar executável
+        run: >
+          dotnet publish shell/CClouder.csproj -c Release -r win-x64
+          --self-contained false -p:PublishSingleFile=true
+          -p:IncludeAllContentForSelfExtract=true
+
+      - name: Conferir versão embutida
+        shell: pwsh
+        run: |
+          $exe = "shell/bin/Release/net10.0-windows/win-x64/publish/CClouder.exe"
+          $expected = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $actual = (Get-Item $exe).VersionInfo.FileVersion
+          Write-Host "esperado=$expected encontrado=$actual"
+          if (-not $actual.StartsWith($expected)) { throw "versão do exe não corresponde ao package.json" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CClouder-exe
+          path: shell/bin/Release/net10.0-windows/win-x64/publish/CClouder.exe
+          if-no-files-found: error

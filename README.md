@@ -58,7 +58,7 @@ Interface moderna (React + Tailwind) hospedada em WebView2, com backend nativo C
 
 **4. Por que WPF/WebView2?** O backend nativo é C#/.NET 10, sem Rust no projeto. O shell é a única implementação oficial: publica um exe único de ~3 MB e não requer toolchain além do SDK .NET. (O antigo esqueleto Tauri em `src-tauri/` foi removido para não manter dois backends divergentes.)
 
-**5. Segurança.** `asInvoker` (sem pedir admin por padrão — itens de sistema que exigem elevation simplesmente falham e são contados como "itens pulados"); nada é enviado para fora do computador; nenhum código ofuscado. A ponte IPC só aceita mensagens da origem local `https://cclinear.app` e a navegação para outras origens é bloqueada.
+**5. Segurança.** `asInvoker` (sem pedir admin por padrão — itens de sistema que exigem elevation simplesmente falham e são contados como "itens pulados"); nada é enviado para fora do computador; nenhum código ofuscado. A ponte IPC só aceita mensagens da origem local `https://cclinear.app` e a navegação para outras origens é bloqueada. O WebView2 roda com DevTools, menus de contexto, downloads, autofill e permissões de dispositivo desativados, `AreHostObjectsAllowed=false` e CSP restritiva (`default-src 'self'`); as fontes são as do próprio Windows, sem `fonts.googleapis.com`.
 
 **6. Proteções de exclusão.** `delete_files`/`shred_paths` (e as limpezas) recusam unidades inteiras, pastas de sistema (Windows, Program Files, ProgramData), a raiz do perfil e links simbólicos/junctions; as exclusões configuradas também são respeitadas. A limpeza do Firefox toca apenas o diretório `cache2` de cada perfil lido de `profiles.ini`, nunca o perfil inteiro. A sobrescrita do triturador não garante apagamento físico em SSDs, armazenamento flash ou volumes com snapshots.
 
@@ -100,6 +100,17 @@ npm run publish
 ```
 
 Requisitos: .NET 10 Desktop Runtime + WebView2 Runtime (ambos já presentes no Windows 11 atualizado).
+
+A versão é definida **apenas** em `package.json`: o Vite injeta `__APP_VERSION__` na UI e o `.csproj` lê o mesmo arquivo para o `FileVersion` do exe.
+
+## Testes e CI
+
+```bash
+npm test        # dotnet test tests/CClouder.Tests (xunit)
+npm run build   # tsc + vite
+```
+
+A suíte cobre descoberta do cache do Firefox via `profiles.ini`, preservação de dados do perfil, validação de caminhos de exclusão, uso do catálogo (não do payload) em `clean_selected` e verificação SHA-256 do auto-update. O workflow em `.github/workflows/ci.yml` compila frontend e shell, roda os testes, publica o exe e confere se o `FileVersion` corresponde ao `package.json`.
 
 ## Nota
 

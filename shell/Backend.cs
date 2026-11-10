@@ -434,7 +434,7 @@ public static partial class Backend
         catch { }
     }
 
-    static void CleanWalk(string dir, DateTime? cutoff, ref ulong freed, ref int count)
+    internal static void CleanWalk(string dir, DateTime? cutoff, ref ulong freed, ref int count)
     {
         try
         {
@@ -647,7 +647,11 @@ public static partial class Backend
                 bool looksLikeFile = v.Contains('\\') || v.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
                     || v.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || v.EndsWith(".ocx", StringComparison.OrdinalIgnoreCase);
                 if (!looksLikeFile) continue;
-                if (!File.Exists(v)) result.Add(sub);
+                if (File.Exists(v)) continue;
+                // Handlers registrados como extensão de shell aprovada podem estar em uso:
+                // nunca tratar como órfão (evita quebrar Explorer/terceiros).
+                if (IsApprovedShellExtension(sub)) continue;
+                result.Add(sub);
             }
             catch { }
         }
@@ -682,7 +686,48 @@ public static partial class Backend
         return S(n);
     }
 
+    // CLSIDs listados em "Shell Extensions\Approved" estão registrados e em uso
+    // pelo Windows/terceiros, mesmo que o servidor não esteja no caminho esperado.
+    static bool IsApprovedShellExtension(string clsid)
+    {
+        try
+        {
+            using var approved = SafeOpen(Registry.LocalMachine,
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved");
+            return approved?.GetValue(clsid) != null;
+        }
+        catch { return false; }
+    }
+
     // ---- Extensões ----
+    // Uma extensão só é considerada órfã quando nenhum vínculo do usuário ou do
+    // sistema a referencia: UserChoice (padrão do usuário) e SystemFileAssociations
+    // sobrevivem mesmo sem o ProgID em HKCR.
+    static bool HasLiveExtensionBinding(string extension)
+    {
+        try
+        {
+            using (var userChoice = SafeOpen(Registry.CurrentUser,
+                @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\" + extension + @"\UserChoice"))
+                if (userChoice?.GetValue("ProgId") != null) return true;
+
+            using (var system = SafeOpen(Registry.ClassesRoot, @"SystemFileAssociations\" + extension))
+                if (system != null) return true;
+
+            // Extensões com OpenWithProgids/OpenWithList continuam selecionáveis no menu "Abrir com".
+            using var sk = SafeOpen(Registry.ClassesRoot, extension);
+            if (sk != null)
+            {
+                using var openWith = SafeOpen(sk, "OpenWithProgids");
+                if (openWith != null && openWith.GetValueNames().Length > 0) return true;
+                using var openWithList = SafeOpen(sk, "OpenWithList");
+                if (openWithList != null && openWithList.GetValueNames().Length > 0) return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
     static List<string> OrphanExtensionNames()
     {
         var result = new List<string>();
@@ -695,8 +740,9 @@ public static partial class Backend
                 using var sk = SafeOpen(Registry.ClassesRoot, e);
                 if (sk == null) continue;
                 string progid = sk.GetValue(null) as string ?? "";
-                if (!string.IsNullOrWhiteSpace(progid) && !progids.Contains(progid))
-                    result.Add(e);
+                if (string.IsNullOrWhiteSpace(progid) || progids.Contains(progid)) continue;
+                if (HasLiveExtensionBinding(e)) continue;
+                result.Add(e);
             }
         }
         catch { }
@@ -1036,6 +1082,17 @@ public static partial class Backend
     }
 
     // ============================ DISCO ============================
+
+    public static void OpenUrl(string url)
+    {
+        try
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+                Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch { }
+    }
 
     public static void OpenPath(string p)
     {

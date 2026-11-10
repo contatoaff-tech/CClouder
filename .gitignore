@@ -3,4 +3,6 @@ dist/
 publish-qa/
 shell/bin/
 shell/obj/
+tests/**/bin/
+tests/**/obj/
 *.user

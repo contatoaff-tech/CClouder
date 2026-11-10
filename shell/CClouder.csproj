@@ -11,12 +11,18 @@
     <RootNamespace>CClouder</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.7.0</Version>
+    <!-- Versão em fonte única: lida de ../package.json (mesma usada pelo frontend). -->
+    <PackageJsonContent>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\package.json'))</PackageJsonContent>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($(PackageJsonContent), '"version"\s*:\s*"([^"]+)"').Groups[1].Value)</Version>
     <Product>CClouder</Product>
     <Description>Limpador de sistema open source, leve e sem telemetria</Description>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CClouder.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.*" />

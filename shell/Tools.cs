@@ -294,7 +294,7 @@ public static partial class Backend
         catch { return false; }
     }
 
-    static string ValidateManualDeletePath(string path)
+    internal static string ValidateManualDeletePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) throw new Exception("caminho vazio");
         string full = Path.GetFullPath(path);

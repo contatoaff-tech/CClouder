@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "dotnet test tests/CClouder.Tests/CClouder.Tests.csproj -c Release",
     "publish": "dotnet publish shell/CClouder.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true"
   },
   "dependencies": {
